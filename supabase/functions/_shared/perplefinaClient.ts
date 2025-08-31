@@ -2,7 +2,7 @@
  * Shared Perplefina API client for finance-focused analysis
  */
 
-const PERPLEFINA_API_URL = Deno.env.get('PERPLEXICA_API_URL') || 'http://134.199.224.223:3000/api/search';
+const PERPLEFINA_API_URL = Deno.env.get('PERPLEFINA_API_URL');
 
 export interface PerplefinaRequest {
   focusMode: 'news' | 'social' | 'fundamentals' | 'macroEconomy';

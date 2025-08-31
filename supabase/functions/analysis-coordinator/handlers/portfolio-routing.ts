@@ -122,6 +122,13 @@ async function routeToPortfolioManager(
   
   // Route to analysis-portfolio-manager using invokeAgentWithRetry for proper settings handling
   // Fire-and-forget invocation of portfolio manager
+  console.log('🚀 Invoking analysis-portfolio-manager with params:');
+  console.log(`   analysisId: ${analysisId}`);
+  console.log(`   ticker: ${ticker}`);
+  console.log(`   userId: ${userId}`);
+  console.log(`   apiSettings keys: ${apiSettings ? Object.keys(apiSettings).join(', ') : 'null'}`);
+  console.log(`   phase: portfolio`);
+  
   invokeAgentWithRetry(
       supabase,
       'analysis-portfolio-manager',
@@ -134,7 +141,7 @@ async function routeToPortfolioManager(
       // analysisContext removed - not needed for agents
   );
   
-  console.log('✅ analysis-portfolio-manager started for individual analysis');
+  console.log('✅ analysis-portfolio-manager invocation initiated for individual analysis');
   
   return createSuccessResponse({
     message: 'Portfolio routing completed - analysis-portfolio-manager started'

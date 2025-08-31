@@ -138,7 +138,7 @@ export async function invokeAgentWithRetry(
       } else if (agentName.includes('risky-analyst') || agentName.includes('safe-analyst') ||
         agentName.includes('neutral-analyst') || agentName.includes('risk-manager')) {
         phase = 'risk';
-      } else if (agentName.includes('portfolio-manager')) {
+      } else if (agentName.includes('portfolio-manager') || agentName === 'analysis-portfolio-manager') {
         phase = 'portfolio';
       } else {
         phase = 'unknown';
@@ -192,9 +192,12 @@ export async function invokeAgentWithRetry(
   // This IIFE runs independently and doesn't block the caller
   (async () => {
     try {
+      console.log(`🔄 Starting fire-and-forget invocation of ${agentName}`);
       const result = await invokeWithRetry(supabase, agentName, body, maxRetries, 2000);
       if (!result.success) {
         console.error(`⚠️ Agent ${agentName} invocation returned failure: ${result.error}`);
+      } else {
+        console.log(`✅ Agent ${agentName} invocation completed successfully`);
       }
     } catch (error) {
       console.error(`❌ Agent invocation failed for ${agentName}:`, error);
@@ -235,7 +238,8 @@ function getAgentDisplayName(agentFunctionName: string): string {
     'agent-neutral-analyst': 'Neutral Analyst',
     'agent-risk-manager': 'Risk Manager',
     'agent-trader': 'Trader',
-    'agent-portfolio-manager': 'Portfolio Manager'
+    'agent-portfolio-manager': 'Portfolio Manager',
+    'analysis-portfolio-manager': 'Portfolio Manager'
   };
 
   return nameMap[agentFunctionName] || agentFunctionName;

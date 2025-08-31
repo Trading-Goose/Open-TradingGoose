@@ -160,47 +160,6 @@ const Index = () => {
                 </div>
               </div>
             </div>
-
-            {/* Rebalance Workflow */}
-            <div className="py-12  space-y-6">
-              <div className="text-center space-y-3">
-                <h3 className="text-xl font-bold">Intelligent Rebalancing System</h3>
-                <p className="text-sm text-muted-foreground max-w-2xl mx-auto">
-                  Automated portfolio rebalancing with intelligent opportunity detection and risk management
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-center">
-                {/* Phase Steps */}
-                <div className="space-y-3">
-                  {[
-                    { num: 1, title: "Threshold Check", desc: "Monitor portfolio drift triggers", color: "yellow" },
-                    { num: 2, title: "Opportunity Check", desc: "Evaluate market conditions", color: "orange" },
-                    { num: 3, title: "Full Analysis", desc: "Complete 5-phase analysis", color: "gray" },
-                    { num: 4, title: "Portfolio Execution", desc: "Execute rebalancing strategy", color: "blue" }
-                  ].map((step, index) => (
-                    <div key={index} className="inline-flex items-center gap-3 px-3 py-2 bg-card/50 rounded-full border border-border/50 hover:bg-card transition-colors">
-                      <div className={`w-6 h-6 bg-${step.color}-500 text-white rounded-full flex items-center justify-center font-bold text-xs`}>
-                        {step.num}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium text-sm">{step.title}</div>
-                        <div className="text-xs text-muted-foreground truncate">{step.desc}</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Workflow Image */}
-                <div className="lg:col-span-2">
-                  <img
-                    src="/Rebalance-Flow-dark.png"
-                    alt="TradingGoose Rebalance Workflow"
-                    className="w-full mx-auto"
-                  />
-                </div>
-              </div>
-            </div>
           </div>
 
         </div>

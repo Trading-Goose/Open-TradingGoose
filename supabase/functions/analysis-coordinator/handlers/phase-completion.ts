@@ -4,7 +4,7 @@ import { moveToNextPhase, handleFailedInvocationFallback } from '../utils/phase-
 import { WORKFLOW_PHASES } from '../config/workflow.ts';
 import { invokeAgentWithRetry } from '../../_shared/invokeWithRetry.ts';
 import { checkPhaseHealth } from '../utils/phase-health-checker.ts';
-import { markAnalysisAsErrorWithRebalanceCheck } from '../utils/analysis-error-handler.ts';
+import { markAnalysisAsError } from '../utils/analysis-error-handler.ts';
 
 /**
  * Handle phase completion - when all agents in phase are complete
@@ -42,7 +42,7 @@ export async function handlePhaseCompletion(
       console.error(`❌ Research Manager completed but no debate content found - cannot proceed`);
       
       // This is a critical error - mark analysis as error
-      const errorResult = await markAnalysisAsErrorWithRebalanceCheck(
+      const errorResult = await markAnalysisAsError(
         supabase,
         analysisId,
         ticker,
@@ -70,8 +70,8 @@ export async function handlePhaseCompletion(
     
     // Mark analysis as error if we can't proceed
     if (phaseHealth.criticalFailures.length > 0) {
-      // Use unified helper to mark analysis as error and notify rebalance if needed
-      const errorResult = await markAnalysisAsErrorWithRebalanceCheck(
+      // Use unified helper to mark analysis as error
+      const errorResult = await markAnalysisAsError(
         supabase,
         analysisId,
         ticker,
@@ -84,9 +84,6 @@ export async function handlePhaseCompletion(
         console.error(`❌ Failed to mark analysis as ERROR:`, errorResult.error);
       } else {
         console.log(`✅ Analysis marked as ERROR successfully`);
-        if (errorResult.rebalanceNotified) {
-          console.log(`📊 Phase ${phase} critical failure - rebalance-coordinator notified`);
-        }
       }
         
       return createErrorResponse(

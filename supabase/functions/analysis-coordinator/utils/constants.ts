@@ -18,7 +18,6 @@ export const JSON_RESPONSE_HEADERS = {
  * Default workflow configuration values
  */
 export const DEFAULT_VALUES = {
-  REBALANCE_THRESHOLD: 10,
   DEBATE_ROUNDS: 2,
   POSITION_SIZE_DOLLARS: 1000,
   MAX_POSITION_SIZE: 10,

@@ -25,7 +25,6 @@ interface TradeDecision {
   executedAt: string | null;
   sourceType: string;
   analysisId?: string;
-  rebalanceRequestId?: string;
   alpacaOrderId?: string;
   alpacaOrderStatus?: string;
   alpacaFilledQty?: number;
@@ -33,12 +32,6 @@ interface TradeDecision {
   createdAt: string;
 }
 
-interface RebalanceGroup {
-  id: string;
-  createdAt: string;
-  status: string;
-  trades: TradeDecision[];
-}
 
 export default function TradeHistoryTable() {
   const [loading, setLoading] = useState(true);
@@ -80,7 +73,6 @@ export default function TradeHistoryTable() {
           executedAt: item.executed_at ? formatTimestamp(item.executed_at) : null,
           sourceType: item.source_type,
           analysisId: item.analysis_id,
-          rebalanceRequestId: item.rebalance_request_id,
           alpacaOrderId: item.metadata?.alpaca_order?.id,
           alpacaOrderStatus: item.metadata?.alpaca_order?.status,
           alpacaFilledQty: item.metadata?.alpaca_order?.filled_qty ? Number(item.metadata.alpaca_order.filled_qty) : undefined,
@@ -299,49 +291,8 @@ export default function TradeHistoryTable() {
     return allTrades.filter(trade => trade.status === status);
   };
 
-  // Group trades by rebalance
-  const groupTradesByRebalance = (trades: TradeDecision[]): (TradeDecision | RebalanceGroup)[] => {
-    const rebalanceGroups = new Map<string, RebalanceGroup>();
-    const standaloneTradesList: TradeDecision[] = [];
 
-    trades.forEach(trade => {
-      if (trade.rebalanceRequestId) {
-        if (!rebalanceGroups.has(trade.rebalanceRequestId)) {
-          rebalanceGroups.set(trade.rebalanceRequestId, {
-            id: trade.rebalanceRequestId,
-            createdAt: trade.createdAt,
-            status: trade.status,
-            trades: []
-          });
-        }
-        rebalanceGroups.get(trade.rebalanceRequestId)!.trades.push(trade);
-      } else {
-        standaloneTradesList.push(trade);
-      }
-    });
-
-    // Convert to array and sort chronologically (mixing both types)
-    
-    // Sort trades within each rebalance group
-    Array.from(rebalanceGroups.values()).forEach(group => {
-      group.trades.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-    });
-    
-    // Combine rebalance groups and standalone trades, then sort by creation time
-    const rebalanceGroupsArray = Array.from(rebalanceGroups.values());
-    const allItems: (TradeDecision | RebalanceGroup)[] = [...rebalanceGroupsArray, ...standaloneTradesList];
-    
-    // Sort all items by their creation time (newest first)
-    allItems.sort((a, b) => {
-      const timeA = new Date(a.createdAt).getTime();
-      const timeB = new Date(b.createdAt).getTime();
-      return timeB - timeA;
-    });
-
-    return allItems;
-  };
-
-  const renderTradeCard = (decision: TradeDecision, isInGroup = false) => {
+  const renderTradeCard = (decision: TradeDecision) => {
     const isPending = decision.status === 'pending';
     const isExecuted = decision.status === 'executed';
     const isApproved = decision.status === 'approved';
@@ -373,9 +324,7 @@ export default function TradeHistoryTable() {
     return (
       <div
         key={decision.id}
-        className={`p-3 rounded-lg border transition-colors flex flex-col gap-3 ${
-          isInGroup ? 'border-l-2 border-l-border ml-4' : ''
-        } ${getCardClasses()}`}
+        className={`p-3 rounded-lg border transition-colors flex flex-col gap-3 ${getCardClasses()}`}
       >
         <div className="flex items-start justify-between gap-3">
           <div className="flex gap-3 flex-1">
@@ -594,8 +543,6 @@ export default function TradeHistoryTable() {
   };
 
   const renderContent = (trades: TradeDecision[]) => {
-    const groupedItems = groupTradesByRebalance(trades);
-
     if (loading) {
       return (
         <div className="flex flex-col items-center justify-center p-12 gap-4">
@@ -605,7 +552,7 @@ export default function TradeHistoryTable() {
       );
     }
 
-    if (groupedItems.length === 0) {
+    if (trades.length === 0) {
       return (
         <div className="text-center py-8 text-muted-foreground text-sm">
           No trades found for this filter
@@ -613,42 +560,16 @@ export default function TradeHistoryTable() {
       );
     }
 
+    // Sort trades by creation time (newest first)
+    const sortedTrades = [...trades].sort((a, b) => {
+      const timeA = new Date(a.createdAt).getTime();
+      const timeB = new Date(b.createdAt).getTime();
+      return timeB - timeA;
+    });
+
     return (
       <div className="space-y-4">
-        {groupedItems.map((item) => {
-          // Check if it's a rebalance group
-          if ('trades' in item) {
-            const group = item as RebalanceGroup;
-            return (
-              <div key={`rebalance-${group.id}`} className="space-y-3">
-                {/* Rebalance Group Header */}
-                <div className="p-4 rounded-lg border border-border bg-card/50">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                      <Package className="h-5 w-5 text-muted-foreground" />
-                      <span className="font-semibold">Rebalance Session</span>
-                      <Badge variant="outline" className="text-xs">
-                        {group.trades.length} trade{group.trades.length !== 1 ? 's' : ''}
-                      </Badge>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Calendar className="h-4 w-4" />
-                      {formatFullDate(group.createdAt)}
-                    </div>
-                  </div>
-                  
-                  {/* Rebalance Trades */}
-                  <div className="space-y-3">
-                    {group.trades.map(trade => renderTradeCard(trade, true))}
-                  </div>
-                </div>
-              </div>
-            );
-          } else {
-            // Standalone trade
-            return renderTradeCard(item as TradeDecision);
-          }
-        })}
+        {sortedTrades.map((trade) => renderTradeCard(trade))}
       </div>
     );
   };

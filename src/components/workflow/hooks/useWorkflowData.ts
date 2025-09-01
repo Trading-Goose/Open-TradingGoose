@@ -11,24 +11,16 @@ import {
 } from '@/lib/statusTypes';
 import type { WorkflowStep, StepAgentMapping } from '../types';
 
-export function useWorkflowData(setIsRebalanceContext: (value: boolean) => void) {
+export function useWorkflowData() {
   const [workflowData, setWorkflowData] = useState<WorkflowStep[]>(() => getInitialWorkflowSteps());
 
   const updateWorkflowFromAnalysis = useCallback((analysis: any): boolean => {
     if (!analysis) return false;
 
-    // Check if this is a rebalance analysis
-    const isRebalanceAnalysis = !!analysis.rebalance_request_id;
-
     console.log('Analysis type check:', {
       ticker: analysis.ticker,
-      rebalance_request_id: analysis.rebalance_request_id,
-      isRebalanceAnalysis,
       analysis_status: analysis.analysis_status
     });
-
-    // Update the rebalance context state
-    setIsRebalanceContext(isRebalanceAnalysis);
 
     // Convert legacy numeric status if needed for proper checking
     const currentStatus = typeof analysis.analysis_status === 'number'
@@ -46,16 +38,7 @@ export function useWorkflowData(setIsRebalanceContext: (value: boolean) => void)
     const isRunning = currentStatus === ANALYSIS_STATUS.RUNNING || currentStatus === ANALYSIS_STATUS.PENDING;
 
     // Build workflow steps using unified agent status checking
-    let baseSteps = getInitialWorkflowSteps();
-
-    // Filter out portfolio management step for rebalance analyses
-    if (isRebalanceAnalysis) {
-      baseSteps = baseSteps.filter(step =>
-        step.id !== 'portfolio-management' &&
-        step.id !== 'portfolio' &&
-        !step.name.toLowerCase().includes('portfolio')
-      );
-    }
+    const baseSteps = getInitialWorkflowSteps();
 
     // Update each step using unified agent status checking
     const updatedSteps = baseSteps.map((step) => {
@@ -146,7 +129,7 @@ export function useWorkflowData(setIsRebalanceContext: (value: boolean) => void)
 
     setWorkflowData(updatedSteps);
     return isRunning;
-  }, [setIsRebalanceContext]);
+  }, []);
 
   return {
     workflowData,

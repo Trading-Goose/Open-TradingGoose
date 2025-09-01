@@ -33,7 +33,7 @@ export async function reactivateStaleAnalysis(
       return createErrorResponse('Analysis not found');
     }
     
-    // Check if analysis is in running state (NOT pending - pending might be part of a rebalance queue)
+    // Check if analysis is in running state
     if (analysis.analysis_status !== ANALYSIS_STATUS.RUNNING) {
       console.warn(`⚠️ Analysis ${analysisId} is not in running state: ${analysis.analysis_status}`);
       return createErrorResponse(

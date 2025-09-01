@@ -8,32 +8,21 @@ import { getStatusColor, getStatusIcon, getStatusIconClassName, getStepProgress 
 
 interface WorkflowStepsProps {
   workflowData: WorkflowStep[];
-  isRebalanceContext: boolean;
   setSelectedStep: (step: WorkflowStep) => void;
 }
 
 export function WorkflowSteps({
   workflowData,
-  isRebalanceContext,
   setSelectedStep
 }: WorkflowStepsProps) {
-  const filteredSteps = isRebalanceContext
-    ? workflowData.filter(step =>
-      step.id !== 'portfolio-management' &&
-      step.id !== 'portfolio' &&
-      !step.name.toLowerCase().includes('portfolio'))
-    : workflowData;
-
   console.log('Displaying workflow steps:', {
-    isRebalanceContext,
     totalSteps: workflowData.length,
-    filteredSteps: filteredSteps.length,
-    stepNames: filteredSteps.map(s => s.name)
+    stepNames: workflowData.map(s => s.name)
   });
 
   return (
     <div className="flex items-center justify-center overflow-hidden">
-      {filteredSteps.map((step) => {
+      {workflowData.map((step) => {
         const Icon = step.icon;
         return (
           <div key={step.id} className="flex items-center">

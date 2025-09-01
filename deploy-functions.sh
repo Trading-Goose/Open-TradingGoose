@@ -45,11 +45,6 @@ SUPABASE_ACCESS_TOKEN=$SUPABASE_ACCESS_TOKEN npx supabase functions deploy execu
 echo "📦 Deploying analysis-coordinator..."
 SUPABASE_ACCESS_TOKEN=$SUPABASE_ACCESS_TOKEN npx supabase functions deploy analysis-coordinator --project-ref $SUPABASE_PROJECT_REF --no-verify-jwt
 
-# Deploy stale analysis detector
-echo "📦 Deploying detect-stale-analysis..."
-SUPABASE_ACCESS_TOKEN=$SUPABASE_ACCESS_TOKEN npx supabase functions deploy detect-stale-analysis --project-ref $SUPABASE_PROJECT_REF
-
-
 
 # Deploy all agent functions
 agents=(

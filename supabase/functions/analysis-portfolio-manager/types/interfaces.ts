@@ -26,7 +26,6 @@ export interface AnalysisPortfolioManagerRequest {
   constraints?: {
     maxPositionSize?: number;
     minPositionSize?: number;
-    rebalanceThreshold?: number;
     targetCashAllocation?: number;
     targetStockAllocation?: number;
     skipThresholdCheck?: boolean;

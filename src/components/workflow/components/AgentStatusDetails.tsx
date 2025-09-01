@@ -10,25 +10,16 @@ import { getStageStatusColor } from '../utils/statusHelpers';
 
 interface AgentStatusDetailsProps {
   workflowData: WorkflowStep[];
-  isRebalanceContext: boolean;
   isAnalyzing: boolean;
   activeAnalysisTicker: string | null;
 }
 
 export function AgentStatusDetails({
   workflowData,
-  isRebalanceContext,
   isAnalyzing,
   activeAnalysisTicker
 }: AgentStatusDetailsProps) {
   const [expandedAgents, setExpandedAgents] = useState(false);
-
-  const filteredSteps = isRebalanceContext
-    ? workflowData.filter(step =>
-      step.id !== 'portfolio-management' &&
-      step.id !== 'portfolio' &&
-      !step.name.toLowerCase().includes('portfolio'))
-    : workflowData;
 
   return (
     <div className="border-t pt-4">
@@ -45,7 +36,7 @@ export function AgentStatusDetails({
 
       {expandedAgents && (
         <div className="mt-4 space-y-4">
-          {filteredSteps.map((step) => (
+          {workflowData.map((step) => (
             <div key={step.id} className="space-y-2">
               <div className="flex items-center justify-between">
                 <div>
@@ -126,9 +117,6 @@ export function AgentStatusDetails({
                 <>Analysis completed for {activeAnalysisTicker}</>
               ) : (
                 <>Ready to analyze • LangGraph orchestrated</>
-              )}
-              {isRebalanceContext && (
-                <> • Rebalance mode (Portfolio Manager runs at rebalance level)</>
               )}
             </p>
           </div>

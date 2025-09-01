@@ -51,8 +51,6 @@ export interface PortfolioApiSettings extends AlpacaApiSettings {
   ai_model?: string;
   user_risk_level?: 'conservative' | 'moderate' | 'aggressive';
   default_position_size_dollars?: number;
-  rebalance_max_position_size?: number; // Legacy field - kept for backward compatibility
-  rebalance_min_position_size?: number; // Legacy field - kept for backward compatibility
   portfolio_manager_ai?: string;
   portfolio_manager_model?: string;
   portfolio_manager_max_tokens?: number;

@@ -9,7 +9,7 @@ import {
   shouldContinueAfterError,
   checkPhaseHealth 
 } from '../utils/phase-health-checker.ts';
-import { markAnalysisAsErrorWithRebalanceCheck } from '../utils/analysis-error-handler.ts';
+import { markAnalysisAsError } from '../utils/analysis-error-handler.ts';
 
 /**
  * Handle agent completion and workflow coordination for individual stock analysis
@@ -120,8 +120,8 @@ export async function handleAgentCompletion(
       if (completedRounds.length === 0) {
         console.log(`❌ No complete debate rounds (need both bull AND bear) - cannot proceed without proper research debate`);
         
-        // Use unified helper to mark analysis as error and notify rebalance if needed
-        const errorResult = await markAnalysisAsErrorWithRebalanceCheck(
+        // Use unified helper to mark analysis as error
+        const errorResult = await markAnalysisAsError(
           supabase,
           analysisId,
           ticker,
@@ -135,9 +135,6 @@ export async function handleAgentCompletion(
           console.error(`❌ Failed to mark analysis as ERROR:`, errorResult.error);
         } else {
           console.log(`✅ Analysis marked as ERROR successfully`);
-          if (errorResult.rebalanceNotified) {
-            console.log(`📊 Rebalance-coordinator notified`);
-          }
         }
         
         return createErrorResponse(
@@ -188,8 +185,8 @@ export async function handleAgentCompletion(
     if (!shouldContinue && errorCategory.shouldStopWorkflow) {
       console.log(`❌ Critical failure in ${agent} - stopping workflow`);
       
-      // Use unified helper to mark analysis as error and notify rebalance if needed
-      const errorResult = await markAnalysisAsErrorWithRebalanceCheck(
+      // Use unified helper to mark analysis as error
+      const errorResult = await markAnalysisAsError(
         supabase,
         analysisId,
         ticker,
@@ -203,9 +200,6 @@ export async function handleAgentCompletion(
         console.error(`❌ Failed to mark analysis as ERROR:`, errorResult.error);
       } else {
         console.log(`✅ Analysis marked as ERROR successfully`);
-        if (errorResult.rebalanceNotified) {
-          console.log(`📊 Rebalance-coordinator notified`);
-        }
       }
       
       return createErrorResponse(`${agent} failed critically - ${reason}`);
@@ -331,8 +325,8 @@ export async function handleAgentCompletion(
       if (phaseHealth.criticalFailures.length > 0 || 
           phase === 'research' || 
           phase === 'trading') {
-        // Use unified helper to mark analysis as error and notify rebalance if needed
-        const errorResult = await markAnalysisAsErrorWithRebalanceCheck(
+        // Use unified helper to mark analysis as error
+        const errorResult = await markAnalysisAsError(
           supabase,
           analysisId,
           ticker,
@@ -345,9 +339,6 @@ export async function handleAgentCompletion(
           console.error(`❌ Failed to mark analysis as ERROR:`, errorResult.error);
         } else {
           console.log(`✅ Analysis marked as ERROR successfully`);
-          if (errorResult.rebalanceNotified) {
-            console.log(`📊 Rebalance-coordinator notified about phase health failure`);
-          }
         }
       }
       

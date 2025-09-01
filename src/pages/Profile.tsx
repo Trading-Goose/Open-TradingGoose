@@ -49,8 +49,7 @@ export default function ProfilePage() {
   } = useSubscription();
   const [activityStats, setActivityStats] = useState({
     totalAnalyses: 0,
-    executedTrades: 0,
-    rebalances: 0
+    executedTrades: 0
   });
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
   const [sendingResetEmail, setSendingResetEmail] = useState(false);
@@ -147,16 +146,10 @@ export default function ProfilePage() {
           .eq('user_id', user.id)
           .eq('status', 'executed');
 
-        // Fetch rebalances count
-        const { count: rebalancesCount } = await supabase
-          .from('rebalance_requests')
-          .select('*', { count: 'exact', head: true })
-          .eq('user_id', user.id);
 
         setActivityStats({
           totalAnalyses: analysesCount || 0,
-          executedTrades: tradesCount || 0,
-          rebalances: rebalancesCount || 0
+          executedTrades: tradesCount || 0
         });
       } catch (error) {
         console.error('Error fetching activity stats:', error);
@@ -525,10 +518,6 @@ export default function ProfilePage() {
                 <div className="text-center p-4 border rounded-lg">
                   <p className="text-2xl font-bold">{activityStats.executedTrades}</p>
                   <p className="text-sm text-muted-foreground">Trades Executed</p>
-                </div>
-                <div className="text-center p-4 border rounded-lg">
-                  <p className="text-2xl font-bold">{activityStats.rebalances}</p>
-                  <p className="text-sm text-muted-foreground">Rebalances</p>
                 </div>
               </div>
             </CardContent>

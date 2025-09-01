@@ -859,7 +859,7 @@ export default function RecentTrades() {
                                         >
                                           {icon}
                                           {displayText}
-                                          {decision.alpacaFilledQty > 0 && status === ALPACA_ORDER_STATUS.PARTIALLY_FILLED && (
+                                          {decision.alpacaFilledQty && decision.alpacaFilledQty > 0 && status === 'partially_filled' && (
                                             <span className="ml-1">({decision.alpacaFilledQty}/{decision.quantity})</span>
                                           )}
                                         </Badge>
@@ -1038,7 +1038,7 @@ export default function RecentTrades() {
                                         >
                                           {icon}
                                           {displayText}
-                                          {decision.alpacaFilledQty > 0 && status === ALPACA_ORDER_STATUS.PARTIALLY_FILLED && (
+                                          {decision.alpacaFilledQty && decision.alpacaFilledQty > 0 && status === 'partially_filled' && (
                                             <span className="ml-1">({decision.alpacaFilledQty}/{decision.quantity})</span>
                                           )}
                                         </Badge>

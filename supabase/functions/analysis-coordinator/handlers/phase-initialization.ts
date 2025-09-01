@@ -88,9 +88,6 @@ async function initializeResearchPhase(
   
   // Initialize debate count to 1 when starting research phase
   console.log('🚀 Starting research phase with debate round 1...');
-  if (analysisContext?.type === 'rebalance') {
-    console.log('📊 This is a rebalance context analysis - preserving context through research phase');
-  }
   
   // Get current analysis state
   const { data: currentAnalysis } = await supabase

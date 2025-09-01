@@ -11,7 +11,6 @@ export interface TradeOrderData {
   confidence: number;
   reasoning: string;
   analysisId?: string;
-  rebalanceRequestId?: string; // Legacy field - kept for backward compatibility
   
   // Before/After position details
   beforeShares?: number;
@@ -26,16 +25,11 @@ export interface TradeOrderData {
   shareChange?: number;        // Net change in shares
   valueChange?: number;        // Net change in value
   allocationChange?: number;   // Net change in allocation percentage
-  
-  // Rebalance-specific fields (DEPRECATED - kept for backward compatibility)
-  targetAllocation?: number;
-  targetValue?: number;
 }
 
 export interface TradeOrderContext {
   userId: string;
-  sourceType: 'individual_analysis' | 'manual'; // 'rebalance' removed - no longer supported
-  rebalanceRequestId?: string; // Legacy field - kept for backward compatibility
+  sourceType: 'individual_analysis' | 'manual';
   agent?: string;
 }
 
@@ -161,10 +155,9 @@ export async function submitTradeOrders(
       dollar_amount: finalDollarAmount,
       price: 0, // Will be filled with market price at execution
       status: TRADE_ORDER_STATUS.PENDING,
-      agent: context.agent || 'agent-coordinator', // rebalance logic removed
+      agent: context.agent || 'agent-coordinator',
       reasoning: order.reasoning,
       source_type: context.sourceType,
-      rebalance_request_id: order.rebalanceRequestId || context.rebalanceRequestId || null, // Legacy field
       position_percentage: order.afterAllocation || order.targetAllocation || null,
       target_value: order.afterValue || order.targetValue || order.dollarAmount || null,
       analysis_id: order.analysisId || null,
@@ -271,27 +264,3 @@ export function createTradeOrderFromDecision(
   };
 }
 
-/**
- * Helper function to create trade orders from rebalance plan
- * DEPRECATED: Rebalance functionality has been removed
- * Kept for backward compatibility only
- */
-/*
-export function createTradeOrdersFromRebalancePlan(
-  rebalancePlan: any
-): TradeOrderData[] {
-  if (!rebalancePlan?.actions) {
-    return [];
-  }
-  
-  return rebalancePlan.actions.map((action: any) => ({
-    ticker: action.ticker,
-    action: action.action,
-    confidence: action.confidence || 70, // Default confidence for rebalance
-    reasoning: action.reasoning,
-    shareChange: action.shareChange,
-    targetAllocation: action.targetAllocation,
-    targetValue: action.targetValue
-  }));
-}
-*/

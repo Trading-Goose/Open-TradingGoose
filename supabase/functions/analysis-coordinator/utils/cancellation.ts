@@ -13,6 +13,5 @@ export async function checkCombinedCancellation(
   supabase: any,
   analysisId: string
 ): Promise<CancellationCheckResult> {
-  // Since we've removed rebalance functionality, this now just checks analysis cancellation
   return checkAnalysisCancellation(supabase, analysisId);
 }

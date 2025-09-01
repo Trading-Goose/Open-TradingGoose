@@ -55,8 +55,6 @@ export default function StandaloneWatchlist({ onSelectStock, selectedStock }: St
   const [selectedTicker, setSelectedTicker] = useState<string | null>(null);
   const [runningAnalyses, setRunningAnalyses] = useState<Set<string>>(new Set());
   const [showLimitAlert, setShowLimitAlert] = useState(false);
-  const [showRebalanceAlert, setShowRebalanceAlert] = useState(false);
-  const [hasRunningRebalance, setHasRunningRebalance] = useState(false);
   const [showWatchlistLimitAlert, setShowWatchlistLimitAlert] = useState(false);
 
   const maxParallelAnalysis = 5; // Default max parallel analysis
@@ -240,32 +238,6 @@ export default function StandaloneWatchlist({ onSelectStock, selectedStock }: St
   // Use ref to track previous running analyses
   const previousRunningRef = useRef<Set<string>>(new Set());
 
-  // Check for running rebalances
-  useEffect(() => {
-    const checkRunningRebalance = async () => {
-      if (!user) return;
-
-      try {
-        const { data: rebalanceData } = await supabase
-          .from('rebalance_requests')
-          .select('id, status')
-          .eq('user_id', user.id);
-
-        if (rebalanceData) {
-          const hasRunning = rebalanceData.some(item =>
-            false
-          );
-          setHasRunningRebalance(hasRunning);
-        }
-      } catch (error) {
-        console.error('Error checking running rebalance:', error);
-      }
-    };
-
-    checkRunningRebalance();
-    const interval = setInterval(checkRunningRebalance, 10000);
-    return () => clearInterval(interval);
-  }, [user]);
 
   // Check for running analyses using unified logic
   useEffect(() => {
@@ -494,11 +466,6 @@ export default function StandaloneWatchlist({ onSelectStock, selectedStock }: St
       // View existing running analysis
       setSelectedTicker(ticker);
     } else {
-      // Check if there's a running rebalance
-      if (hasRunningRebalance) {
-        setShowRebalanceAlert(true);
-        return;
-      }
 
       // Check if we've reached the parallel analysis limit
       if (runningAnalyses.size >= maxParallelAnalysis) {
@@ -817,30 +784,6 @@ export default function StandaloneWatchlist({ onSelectStock, selectedStock }: St
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Rebalance Running Alert Dialog */}
-      <AlertDialog open={showRebalanceAlert} onOpenChange={setShowRebalanceAlert}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              <RefreshCw className="h-5 w-5 text-yellow-500 animate-spin" />
-              Portfolio Rebalance in Progress
-            </AlertDialogTitle>
-            <AlertDialogDescription className="space-y-2">
-              <p>
-                A portfolio rebalance is currently running. Individual stock analyses are temporarily disabled during rebalancing.
-              </p>
-              <p>
-                Please wait for the rebalance to complete before starting new analyses.
-              </p>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogAction onClick={() => setShowRebalanceAlert(false)}>
-              OK
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       {/* Watchlist Limit Alert Dialog */}
       <AlertDialog open={showWatchlistLimitAlert} onOpenChange={setShowWatchlistLimitAlert}>

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Brain, TrendingUp, TrendingDown, AlertTriangle, CheckCircle, Loader2, RefreshCw, Eye, Trash2, MoreVertical, StopCircle, Users, MessageSquare, AlertCircle, Package, Calendar, Clock } from "lucide-react";
+import { Brain, TrendingUp, TrendingDown, AlertTriangle, CheckCircle, Loader2, RefreshCw, Eye, Trash2, MoreVertical, StopCircle, Users, MessageSquare, AlertCircle, Calendar, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -66,34 +66,20 @@ interface RunningAnalysisItem {
   ticker: string;
   created_at: string;
   full_analysis?: any;  // Add to store progress data
-  rebalance_request_id?: string;  // To check if part of rebalance
   status?: AnalysisStatus;  // To distinguish between pending and running
 }
 
-interface RebalanceAnalysisGroup {
-  id: string;
-  createdAt: string;
-  status: string;
-  analyses: AnalysisHistoryItem[];
-}
-
 // Calculate agent completion percentage for a single analysis
-const calculateAgentCompletion = (fullAnalysis: any, isRebalanceAnalysis: boolean = false): number => {
+const calculateAgentCompletion = (fullAnalysis: any): number => {
   if (!fullAnalysis?.messages) return 0;
 
   // Define expected agents (including macro-analyst)
-  // For rebalance analyses, exclude portfolio-manager as it runs at rebalance level
   const expectedAgents = [
     'macro-analyst', 'market-analyst', 'news-analyst', 'social-media-analyst', 'fundamentals-analyst',
     'bull-researcher', 'bear-researcher', 'research-manager',
     'risky-analyst', 'safe-analyst', 'neutral-analyst', 'risk-manager',
-    'trader'
+    'trader', 'portfolio-manager'
   ];
-  
-  // Only add portfolio-manager for standalone analyses (not part of rebalance)
-  if (!isRebalanceAnalysis) {
-    expectedAgents.push('portfolio-manager');
-  }
 
   const messages = fullAnalysis.messages || [];
   const completedAgents = new Set<string>();
@@ -168,7 +154,6 @@ export default function UnifiedAnalysisHistory() {
               ticker: item.ticker,
               created_at: item.created_at,
               full_analysis: item.full_analysis,
-              rebalance_request_id: item.rebalance_request_id,
               status: status
             });
           } else if (status === ANALYSIS_STATUS.COMPLETED) {
@@ -193,7 +178,6 @@ export default function UnifiedAnalysisHistory() {
               ticker: item.ticker,
               created_at: item.created_at,
               full_analysis: item.full_analysis,
-              rebalance_request_id: item.rebalance_request_id,
               status: ANALYSIS_STATUS.RUNNING  // Default to running for fallback logic
             });
           } else if ((item.confidence > 0 || hasAgentInsights) && item.decision && ['BUY', 'SELL', 'HOLD'].includes(item.decision)) {
@@ -442,55 +426,12 @@ export default function UnifiedAnalysisHistory() {
     });
   };
 
-  // Group analyses by rebalance
-  const groupAnalysesByRebalance = (analyses: AnalysisHistoryItem[]): (AnalysisHistoryItem | RebalanceAnalysisGroup)[] => {
-    const rebalanceGroups = new Map<string, RebalanceAnalysisGroup>();
-    const standaloneAnalyses: AnalysisHistoryItem[] = [];
-
-    analyses.forEach(analysis => {
-      if (analysis.full_analysis?.rebalance_request_id || (analysis as any).rebalance_request_id) {
-        const rebalanceId = analysis.full_analysis?.rebalance_request_id || (analysis as any).rebalance_request_id;
-        if (!rebalanceGroups.has(rebalanceId)) {
-          rebalanceGroups.set(rebalanceId, {
-            id: rebalanceId,
-            createdAt: analysis.created_at,
-            status: 'completed', // Default status
-            analyses: []
-          });
-        }
-        rebalanceGroups.get(rebalanceId)!.analyses.push(analysis);
-      } else {
-        standaloneAnalyses.push(analysis);
-      }
-    });
-
-    // Combine all items with their creation timestamps for unified sorting
-    const allItems: (AnalysisHistoryItem | RebalanceAnalysisGroup)[] = [];
-
-    // Add rebalance groups
-    Array.from(rebalanceGroups.values()).forEach(group => {
-      // Sort analyses within group by creation time
-      group.analyses.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-      allItems.push(group);
-    });
-
-    // Add standalone analyses
-    standaloneAnalyses.forEach(analysis => allItems.push(analysis));
-
-    // Sort all items by creation time - use createdAt for groups, created_at for individual analyses
-    return allItems.sort((a, b) => {
-      const dateA = 'createdAt' in a ? new Date(a.createdAt) : new Date(a.created_at);
-      const dateB = 'createdAt' in b ? new Date(b.createdAt) : new Date(b.created_at);
-      return dateB.getTime() - dateA.getTime();
-    });
-  };
 
   // Render individual analysis card
-  const renderAnalysisCard = (item: AnalysisHistoryItem, isInRebalanceGroup: boolean = false) => (
+  const renderAnalysisCard = (item: AnalysisHistoryItem) => (
     <div
       key={item.id}
-      className={`border border-border rounded-lg p-4 space-y-3 cursor-pointer hover:bg-muted/50 transition-colors ${isInRebalanceGroup ? 'bg-muted/10' : ''
-        }`}
+      className="border border-border rounded-lg p-4 space-y-3 cursor-pointer hover:bg-muted/50 transition-colors"
       onClick={() => viewDetails(item)}
     >
       <div className="flex items-center justify-between">
@@ -643,12 +584,12 @@ export default function UnifiedAnalysisHistory() {
                                   <div
                                     className="h-full bg-yellow-500 animate-pulse transition-all"
                                     style={{
-                                      width: `${calculateAgentCompletion(item.full_analysis, !!item.rebalance_request_id)}%`
+                                      width: `${calculateAgentCompletion(item.full_analysis)}%`
                                     }}
                                   />
                                 </div>
                                 <span className="text-xs text-yellow-600 dark:text-yellow-400">
-                                  {Math.round(calculateAgentCompletion(item.full_analysis, !!item.rebalance_request_id))}%
+                                  {Math.round(calculateAgentCompletion(item.full_analysis))}%
                                 </span>
                               </div>
                             )}
@@ -728,40 +669,9 @@ export default function UnifiedAnalysisHistory() {
                   {runningAnalyses.length > 0 && (
                     <h3 className="text-sm font-medium text-muted-foreground mb-3">Completed Analyses</h3>
                   )}
-                  {groupAnalysesByRebalance(history).map((item, index) => {
-                    // Check if it's a rebalance group
-                    if ('analyses' in item) {
-                      const group = item as RebalanceAnalysisGroup;
-                      return (
-                        <div key={`rebalance-${group.id}`} className="space-y-3">
-                          {/* Rebalance Group Header */}
-                          <div className="p-4 rounded-lg border border-border bg-card/50">
-                            <div className="flex items-center justify-between mb-3">
-                              <div className="flex items-center gap-2">
-                                <Package className="h-5 w-5 text-muted-foreground" />
-                                <span className="font-semibold">Rebalance Analysis Session</span>
-                                <Badge variant="outline" className="text-xs">
-                                  {group.analyses.length} analysis{group.analyses.length !== 1 ? 'es' : ''}
-                                </Badge>
-                              </div>
-                              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                <Calendar className="h-4 w-4" />
-                                {formatFullDate(group.createdAt)}
-                              </div>
-                            </div>
-
-                            {/* Rebalance Analyses */}
-                            <div className="space-y-3">
-                              {group.analyses.map(analysis => renderAnalysisCard(analysis, true))}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    } else {
-                      // Standalone analysis
-                      return renderAnalysisCard(item as AnalysisHistoryItem);
-                    }
-                  })}
+                  {history
+                    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                    .map((item) => renderAnalysisCard(item))}
                 </div>
               )}
 
@@ -883,12 +793,12 @@ export default function UnifiedAnalysisHistory() {
                                 <div
                                   className="h-full bg-yellow-500 animate-pulse transition-all"
                                   style={{
-                                    width: `${calculateAgentCompletion(item.full_analysis, !!item.rebalance_request_id)}%`
+                                    width: `${calculateAgentCompletion(item.full_analysis)}%`
                                   }}
                                 />
                               </div>
                               <span className="text-xs text-yellow-600 dark:text-yellow-400">
-                                {Math.round(calculateAgentCompletion(item.full_analysis, !!item.rebalance_request_id))}%
+                                {Math.round(calculateAgentCompletion(item.full_analysis))}%
                               </span>
                             </div>
                           )}
@@ -970,40 +880,9 @@ export default function UnifiedAnalysisHistory() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {groupAnalysesByRebalance(history).map((item, index) => {
-                    // Check if it's a rebalance group
-                    if ('analyses' in item) {
-                      const group = item as RebalanceAnalysisGroup;
-                      return (
-                        <div key={`rebalance-${group.id}`} className="space-y-3">
-                          {/* Rebalance Group Header */}
-                          <div className="p-4 rounded-lg border border-border bg-card/50">
-                            <div className="flex items-center justify-between mb-3">
-                              <div className="flex items-center gap-2">
-                                <Package className="h-5 w-5 text-muted-foreground" />
-                                <span className="font-semibold">Rebalance Analysis Session</span>
-                                <Badge variant="outline" className="text-xs">
-                                  {group.analyses.length} analysis{group.analyses.length !== 1 ? 'es' : ''}
-                                </Badge>
-                              </div>
-                              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                <Calendar className="h-4 w-4" />
-                                {formatFullDate(group.createdAt)}
-                              </div>
-                            </div>
-
-                            {/* Rebalance Analyses */}
-                            <div className="space-y-3">
-                              {group.analyses.map(analysis => renderAnalysisCard(analysis, true))}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    } else {
-                      // Standalone analysis
-                      return renderAnalysisCard(item as AnalysisHistoryItem);
-                    }
-                  })}
+                  {history
+                    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                    .map((item) => renderAnalysisCard(item))}
                 </div>
               )}
             </TabsContent>

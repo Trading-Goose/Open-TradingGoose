@@ -2,7 +2,7 @@ import { corsHeaders } from './cors.ts';
 
 /**
  * Shared response helper functions for consistent error handling across all Edge Functions
- * Following the pattern established by rebalance-coordinator and analysis-coordinator
+ * Following the pattern established by analysis-coordinator
  */
 
 export const JSON_RESPONSE_HEADERS = {

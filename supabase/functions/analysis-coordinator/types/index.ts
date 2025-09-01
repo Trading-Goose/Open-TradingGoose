@@ -19,8 +19,6 @@ export interface ApiSettings {
   // User preferences
   user_risk_level?: string;
   default_position_size_dollars?: number;
-  rebalance_max_position_size?: number; // Legacy field - kept for backward compatibility
-  rebalance_min_position_size?: number; // Legacy field - kept for backward compatibility
   analysis_depth?: string;
   analysis_history_days?: number;
   research_debate_rounds?: number;
@@ -36,28 +34,12 @@ export interface ApiSettings {
 }
 
 export interface AnalysisContext {
-  type: 'individual' | 'rebalance';
-  rebalanceRequestId?: string;
+  type: 'individual';
   tickerIndex?: number;
   totalTickers?: number;
   portfolioData?: PortfolioData;
-  skipOpportunityAgent?: boolean;
-  rebalanceThreshold?: number;
-  constraints?: RebalanceConstraints;
   source?: 'risk-completion' | 'direct';
   // Retry mode fields removed - retry-handler now directly invokes failed agents
-}
-
-export interface RebalanceConstraints {
-  skipOpportunityAgent?: boolean;
-  rebalanceThreshold?: number;
-  maxPositionSize?: number;
-  minPositionSize?: number;
-  maxNewPositions?: number;
-  sellLosersFirst?: boolean;
-  taxStrategy?: string;
-  riskTolerance?: string;
-  [key: string]: any;
 }
 
 export interface PortfolioData {

@@ -108,14 +108,6 @@ const FAQ = () => {
           answer: "TradingGoose itself does NOT execute trades. However:\n\n- You can configure auto-execution through your connected Alpaca account\n- TradingGoose provides the analysis and signals\n- Your Alpaca account handles the actual trade execution\n- You maintain full control over execution settings\n- All trades happen directly between you and Alpaca\n\nThink of TradingGoose as providing the 'brain' (analysis) while Alpaca provides the 'hands' (execution)."
         },
         {
-          question: "How does portfolio rebalancing work?",
-          answer: "Portfolio rebalancing follows a systematic approach:\n\n1. **Configuration**: Set your target allocations and thresholds\n2. **Monitoring**: System checks for drift from targets\n3. **Analysis**: When thresholds are exceeded, full analysis runs\n4. **Recommendations**: AI agents provide rebalancing suggestions\n5. **Execution** (Optional): Execute through your Alpaca account\n\nYou can schedule automatic rebalancing checks or trigger them manually. All rebalancing decisions remain under your control."
-        },
-        {
-          question: "What is the difference between Analysis and Rebalance?",
-          answer: "**Analysis**: Single-stock deep dive\n- Comprehensive analysis of one stock\n- All 15+ agents provide insights\n- Includes trading recommendation (BUY/SELL/HOLD)\n- Results in detailed report with multiple perspectives\n\n**Rebalance**: Portfolio-level optimization\n- Analyzes multiple stocks in your watchlist\n- Focuses on portfolio allocation\n- Considers risk distribution\n- Provides specific rebalancing actions\n- Can be scheduled for automatic monitoring"
-        },
-        {
           question: "Can I paper trade before using real money?",
           answer: "Yes! Alpaca provides paper trading accounts:\n\n1. Create a paper trading account on Alpaca\n2. Use paper trading API keys in TradingGoose\n3. Test all features without real money\n4. Analyze your performance and refine strategies\n5. Switch to live trading when ready\n\nWe strongly recommend starting with paper trading to understand the platform and test your strategies."
         }

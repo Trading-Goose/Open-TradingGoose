@@ -35,8 +35,7 @@ export async function notifyCoordinator(
       let coordinatorFunction = 'analysis-coordinator';
       let coordinatorBody: any = params;
       
-      // Rebalance context check removed - no longer supported
-      // All notifications now go to analysis-coordinator
+      // All notifications go to analysis-coordinator
       
       const result = await supabase.functions.invoke(coordinatorFunction, {
         body: coordinatorBody

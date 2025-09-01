@@ -1,6 +1,6 @@
 /**
  * Shared Alpaca portfolio client for portfolio management functions
- * Extracted from duplicate code in analysis-portfolio-manager and rebalance-portfolio-manager
+ * Extracted from duplicate code in analysis-portfolio-manager
  */
 
 import { AlpacaPortfolioData } from './types.ts';

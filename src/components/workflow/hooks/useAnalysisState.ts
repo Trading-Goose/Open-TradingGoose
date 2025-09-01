@@ -13,7 +13,6 @@ export function useAnalysisState(updateWorkflowFromAnalysis: (analysis: any) => 
   const [activeAnalysisTicker, setActiveAnalysisTicker] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [runningAnalysesCount, setRunningAnalysesCount] = useState(0);
-  const [isRebalanceContext, setIsRebalanceContext] = useState(false);
   const previousRunningRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
@@ -85,8 +84,6 @@ export function useAnalysisState(updateWorkflowFromAnalysis: (analysis: any) => 
     setActiveAnalysisTicker,
     isAnalyzing,
     setIsAnalyzing,
-    runningAnalysesCount,
-    isRebalanceContext,
-    setIsRebalanceContext
+    runningAnalysesCount
   };
 }

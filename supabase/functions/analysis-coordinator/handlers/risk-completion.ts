@@ -24,7 +24,7 @@ export async function handleRiskManagerCompletion(
   // Get the analysis to extract risk decision context
   const { data: analysis } = await supabase
     .from('analysis_history')
-    .select('agent_insights, decision, confidence, rebalance_request_id, analysis_status, ticker, user_id')
+    .select('agent_insights, decision, confidence, analysis_status, ticker, user_id')
     .eq('id', analysisId)
     .single();
   
@@ -54,8 +54,7 @@ export async function handleRiskManagerCompletion(
   
   // Determine analysis context type for portfolio routing
   // Always fetch from database, don't rely on passed context
-  const contextType = analysis.rebalance_request_id ? 'rebalance' : 'individual';
-  const rebalanceRequestId = analysis.rebalance_request_id;
+  const contextType = 'individual';
   
   console.log(`📊 Risk Manager decision context: ${contextType} analysis with decision=${analysis.decision}, confidence=${analysis.confidence}%`);
   
@@ -69,8 +68,7 @@ export async function handleRiskManagerCompletion(
         phase: 'portfolio',
         apiSettings,
         analysisContext: {
-          type: contextType,
-          rebalanceRequestId,
+          type: 'individual',
           source: 'risk-completion'
         },
         riskManagerDecision
@@ -85,10 +83,8 @@ export async function handleRiskManagerCompletion(
     console.log('✅ Successfully handed off portfolio routing to analysis-coordinator');
     
     return createSuccessResponse({
-      message: `Risk Manager completed - analysis-coordinator handling ${contextType} portfolio routing`,
-      analysisId,
-      contextType,
-      rebalanceRequestId
+      message: `Risk Manager completed - analysis-coordinator handling portfolio routing`,
+      analysisId
     });
     
   } catch (error: any) {

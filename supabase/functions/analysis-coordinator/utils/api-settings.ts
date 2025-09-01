@@ -283,8 +283,7 @@ export function getAgentSpecificSettings(
     'agent-risk-manager': { aiField: 'risk_team_ai', modelField: 'risk_team_model', providerIdField: 'risk_team_provider_id' },
 
     // Portfolio Manager (uses its own settings)
-    'analysis-portfolio-manager': { aiField: 'portfolio_manager_ai', modelField: 'portfolio_manager_model', providerIdField: 'portfolio_manager_provider_id' },
-    'rebalance-portfolio-manager': { aiField: 'portfolio_manager_ai', modelField: 'portfolio_manager_model', providerIdField: 'portfolio_manager_provider_id' }
+    'analysis-portfolio-manager': { aiField: 'portfolio_manager_ai', modelField: 'portfolio_manager_model', providerIdField: 'portfolio_manager_provider_id' }
   };
 
   const teamConfig = agentTeamMap[agentName];

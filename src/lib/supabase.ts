@@ -172,22 +172,11 @@ export interface ApiSettings {
   research_max_tokens?: number;
   trading_max_tokens?: number;
   risk_max_tokens?: number;
-  // Legacy rebalance settings - kept for backward compatibility
-  default_rebalance_threshold?: number; // DEPRECATED
+  // Position size settings
   default_min_position_size?: number;
   default_max_position_size?: number;
-  rebalance_threshold?: number; // DEPRECATED
-  rebalance_min_position_size?: number; // DEPRECATED
-  rebalance_max_position_size?: number; // DEPRECATED
   target_stock_allocation?: number;
   target_cash_allocation?: number;
-  rebalance_enabled?: boolean; // DEPRECATED
-  rebalance_schedule?: string; // DEPRECATED
-  opportunity_agent_ai?: string;
-  opportunity_agent_model?: string;
-  opportunity_agent_provider_id?: string;
-  opportunity_max_tokens?: number;
-  opportunity_market_range?: string;
   // Trade execution settings
   auto_execute_trades?: boolean;
   default_position_size_dollars?: number;

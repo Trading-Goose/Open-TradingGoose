@@ -1,10 +1,10 @@
 import { ApiSettings, AnalysisContext } from '../types/index.ts';
 import { createErrorResponse, createSuccessResponse } from '../utils/response-helpers.ts';
 import { ANALYSIS_STATUS } from '../../_shared/statusTypes.ts';
-import { markAnalysisAsErrorWithRebalanceCheck } from '../utils/analysis-error-handler.ts';
+import { markAnalysisAsError } from '../utils/analysis-error-handler.ts';
 
 /**
- * Start a single stock analysis with optional context (supports rebalance linkage)
+ * Start a single stock analysis with optional context
  */
 export async function startSingleAnalysis(
   supabase: any,
@@ -13,7 +13,7 @@ export async function startSingleAnalysis(
   apiSettings: ApiSettings,
   analysisContext?: AnalysisContext
 ): Promise<Response> {
-  console.log(`🚀 Creating analysis record for ${ticker}${analysisContext?.rebalanceRequestId ? ` (rebalance: ${analysisContext.rebalanceRequestId})` : ''}`);
+  console.log(`🚀 Creating analysis record for ${ticker}`);
   
   // Validate ticker format
   if (!/^[A-Z0-9.-]+$/.test(ticker)) {
@@ -36,28 +36,15 @@ export async function startSingleAnalysis(
     analysis = runningAnalyses[0];
     console.log(`⚠️ Found existing pending/running analysis for ${ticker}, reusing ID: ${analysis.id}`);
     
-    // If this is a rebalance context and the existing analysis doesn't have rebalance_request_id, update it
-    if (analysisContext?.rebalanceRequestId && !analysis.rebalance_request_id) {
-      console.log(`🔗 Linking existing analysis ${analysis.id} to rebalance ${analysisContext.rebalanceRequestId}`);
-      await supabase
-        .from('analysis_history')
-        .update({
-          rebalance_request_id: analysisContext.rebalanceRequestId
-        })
-        .eq('id', analysis.id);
-    }
     
     if (runningAnalyses.length > 1) {
       const orphanedIds = runningAnalyses.slice(1).map((a: any) => a.id);
       console.log(`🧹 Cleaning up ${orphanedIds.length} orphaned pending/running analyses for ${ticker}`);
       
-      // Check which orphaned analyses are part of rebalances
-      const orphanedAnalyses = runningAnalyses.slice(1);
-      const rebalanceOrphanedAnalyses = orphanedAnalyses.filter((a: any) => a.rebalance_request_id);
       
       // Update all orphaned analyses using unified helper
       for (const orphanedId of orphanedIds) {
-        const errorResult = await markAnalysisAsErrorWithRebalanceCheck(
+        const errorResult = await markAnalysisAsError(
           supabase,
           orphanedId,
           ticker,
@@ -70,14 +57,11 @@ export async function startSingleAnalysis(
           console.error(`❌ Failed to mark orphaned analysis ${orphanedId} as ERROR:`, errorResult.error);
         } else {
           console.log(`✅ Orphaned analysis ${orphanedId} marked as ERROR`);
-          if (errorResult.rebalanceNotified) {
-            console.log(`📊 Rebalance-coordinator notified about orphaned analysis`);
-          }
         }
       }
     }
   } else {
-    // Create new analysis record with proper rebalance linkage
+    // Create new analysis record
     const insertData: any = {
       user_id: userId,
       ticker,
@@ -89,11 +73,6 @@ export async function startSingleAnalysis(
       full_analysis: createInitialWorkflowSteps()
     };
     
-    // Add rebalance_request_id if this is a rebalance analysis
-    if (analysisContext?.rebalanceRequestId) {
-      insertData.rebalance_request_id = analysisContext.rebalanceRequestId;
-      console.log(`🔗 Creating analysis for ${ticker} linked to rebalance ${analysisContext.rebalanceRequestId}`);
-    }
     
     const { data: newAnalysis, error } = await supabase
       .from('analysis_history')
@@ -130,8 +109,8 @@ export async function startSingleAnalysis(
   if (coordinatorResponse.error) {
     console.error('❌ Failed to start coordinator workflow:', coordinatorResponse.error);
     
-    // Use unified helper to mark analysis as error and notify rebalance if needed
-    const errorResult = await markAnalysisAsErrorWithRebalanceCheck(
+    // Use unified helper to mark analysis as error
+    const errorResult = await markAnalysisAsError(
       supabase,
       analysis.id,
       ticker,
@@ -144,9 +123,6 @@ export async function startSingleAnalysis(
       console.error(`❌ Failed to mark analysis as ERROR:`, errorResult.error);
     } else {
       console.log(`✅ Analysis marked as ERROR successfully`);
-      if (errorResult.rebalanceNotified) {
-        console.log(`📊 Failed to start coordinator - rebalance-coordinator notified`);
-      }
     }
     
     return createErrorResponse(

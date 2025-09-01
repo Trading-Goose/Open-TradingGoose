@@ -331,11 +331,11 @@ export async function handleFailedInvocationFallback(
     console.error(`❌ CRITICAL: All fallback attempts failed - marking analysis as error`);
     
     // Import required modules for status updates
-    const { markAnalysisAsErrorWithRebalanceCheck } = await import('./analysis-error-handler.ts');
+    const { markAnalysisAsError } = await import('./analysis-error-handler.ts');
     const { updateWorkflowStepStatus } = await import('../../_shared/atomicUpdate.ts');
     
-    // Use unified helper to mark analysis as error and notify rebalance if needed
-    const errorResult = await markAnalysisAsErrorWithRebalanceCheck(
+    // Use unified helper to mark analysis as error
+    const errorResult = await markAnalysisAsError(
       supabase,
       analysisId,
       ticker,
@@ -348,9 +348,6 @@ export async function handleFailedInvocationFallback(
       console.error(`❌ Failed to mark analysis as ERROR:`, errorResult.error);
     } else {
       console.log(`✅ Marked analysis ${analysisId} as error status for retry capability`);
-      if (errorResult.rebalanceNotified) {
-        console.log(`📊 Rebalance-coordinator notified of fallback failure`);
-      }
     }
     
     // Mark the failed agent in workflow for retry targeting

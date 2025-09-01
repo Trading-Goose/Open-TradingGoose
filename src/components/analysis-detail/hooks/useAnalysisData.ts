@@ -114,27 +114,12 @@ export function useAnalysisData({ ticker, analysisId, analysisDate, isOpen }: Us
             // New string-based status system
             status = analysisToLoad.analysis_status;
 
-            // Special handling for rebalance workflows
-            if (status === ANALYSIS_STATUS.RUNNING && analysisToLoad.rebalance_request_id &&
-              analysisToLoad.agent_insights?.riskManager) {
-              // For rebalance workflows, consider complete when Risk Manager finishes
-              console.log('Rebalance analysis with Risk Manager complete - marking as completed');
-              status = ANALYSIS_STATUS.COMPLETED;
-            }
           } else {
             // Legacy numeric status system
             if (analysisToLoad.analysis_status === -1) {
               status = ANALYSIS_STATUS.ERROR; // Simplified - all errors/cancellations show as error
             } else if (analysisToLoad.analysis_status === 0) {
-              // Check if this is a rebalance analysis and Risk Manager has completed
-              if (analysisToLoad.rebalance_request_id &&
-                analysisToLoad.agent_insights?.riskManager) {
-                // For rebalance workflows, consider complete when Risk Manager finishes
-                console.log('Rebalance analysis with Risk Manager complete - marking as completed');
-                status = ANALYSIS_STATUS.COMPLETED;
-              } else {
-                status = ANALYSIS_STATUS.RUNNING;
-              }
+              status = ANALYSIS_STATUS.RUNNING;
             } else if (analysisToLoad.analysis_status === 1) {
               status = ANALYSIS_STATUS.COMPLETED;
             }

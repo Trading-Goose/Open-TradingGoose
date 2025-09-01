@@ -112,7 +112,7 @@ export default function SettingsPage() {
   // Analysis optimization settings (for all analysis agents)
   const [analysisOptimization, setAnalysisOptimization] = useState((apiSettings as any)?.analysis_optimization || 'speed');
 
-  // Historical data time ranges (separate from opportunity agent)
+  // Historical data time ranges
   const [analysisHistoryDays, setAnalysisHistoryDays] = useState((apiSettings as any)?.analysis_history_days || '1M');
 
   // Max tokens settings for each workflow step

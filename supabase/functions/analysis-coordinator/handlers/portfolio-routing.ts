@@ -20,7 +20,6 @@ export async function handlePortfolioRouting(
   console.log(`🎯 Portfolio routing for ${ticker}`);
   
   // Route all analyses to portfolio manager
-  // Rebalance functionality has been removed
   return await routeToPortfolioManager(
     supabase,
     analysisId,
@@ -30,8 +29,6 @@ export async function handlePortfolioRouting(
     analysisContext
   );
 }
-
-// Rebalance coordinator routing removed - all analyses now go to portfolio manager
 
 /**
  * Route individual analysis to analysis-portfolio-manager

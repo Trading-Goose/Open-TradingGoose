@@ -4,7 +4,7 @@ import { ANALYSIS_STATUS } from '../../_shared/statusTypes.ts';
  * Unified method to mark an analysis as ERROR
  * This eliminates code duplication and ensures consistent error handling
  */
-export async function markAnalysisAsErrorWithRebalanceCheck(
+export async function markAnalysisAsError(
   supabase: any,
   analysisId: string,
   ticker: string,
@@ -37,8 +37,6 @@ export async function markAnalysisAsErrorWithRebalanceCheck(
     
     console.log(`✅ Analysis marked as ERROR successfully`);
     
-    // Rebalance functionality has been removed
-    // All analyses are now standalone
     
     return { success: true };
   } catch (error) {

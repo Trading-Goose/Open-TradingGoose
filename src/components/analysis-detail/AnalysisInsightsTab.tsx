@@ -104,10 +104,6 @@ export default function AnalysisInsightsTab({
   // Get entries from agent_insights
   let entries = Object.entries(analysisData.agent_insights);
 
-  // Filter out Portfolio Manager for rebalance analyses
-  if (analysisData.rebalance_request_id) {
-    entries = entries.filter(([agent]) => agent !== 'portfolioManager');
-  }
 
   // Filter out standalone Bull and Bear Researcher entries if Research Debate exists
   const hasResearchDebate = analysisData.agent_insights?.researchDebate;
@@ -420,7 +416,7 @@ export default function AnalysisInsightsTab({
           />;
         }
 
-        // Special rendering for Portfolio Manager - simple format like RebalanceDetailModal
+        // Special rendering for Portfolio Manager - simple format
         if (agent === 'portfolioManager') {
           const isCollapsed = collapsedCards.has(agent);
           return (

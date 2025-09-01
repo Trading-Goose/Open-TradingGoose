@@ -37,7 +37,7 @@ export async function checkRunningAnalyses({
     try {
       const { data, error } = await supabase
         .from('analysis_history')
-        .select('ticker, analysis_status, full_analysis, created_at, id, decision, agent_insights, rebalance_request_id, is_canceled')
+        .select('ticker, analysis_status, full_analysis, created_at, id, decision, agent_insights, is_canceled')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
@@ -80,7 +80,6 @@ export async function checkRunningAnalyses({
           )[0];
           console.log('Most recent running analysis:', {
             ticker: mostRecent.ticker,
-            rebalance_request_id: mostRecent.rebalance_request_id,
             analysis_status: mostRecent.analysis_status
           });
           setCurrentAnalysis(mostRecent);

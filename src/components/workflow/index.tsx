@@ -40,10 +40,7 @@ export default function HorizontalWorkflow() {
   const maxParallelAnalysis = 5; // Default max parallel analysis
 
   // Use custom hooks
-  
-  // Note: We need to pass setIsRebalanceContext first to get updateWorkflowFromAnalysis
-  const [isRebalanceContext, setIsRebalanceContext] = useState(false);
-  const { workflowData, updateWorkflowFromAnalysis } = useWorkflowData(setIsRebalanceContext);
+  const { workflowData, updateWorkflowFromAnalysis } = useWorkflowData();
   
   const {
     currentAnalysis,
@@ -77,9 +74,6 @@ export default function HorizontalWorkflow() {
     const result = await startAnalysis({ ticker, userId: user.id });
 
     if (result.success) {
-      // This is an individual analysis, not part of rebalance
-      setIsRebalanceContext(false);
-
       // Set the active ticker and open the detail modal
       setActiveAnalysisTicker(ticker);
       setShowAnalysisDetail(true);
@@ -114,11 +108,6 @@ export default function HorizontalWorkflow() {
               {isAnalyzing ? 'Analysis Progress' :
                 activeAnalysisTicker ? `Most Recent Analysis: ${activeAnalysisTicker}` :
                   'Analysis Progress'}
-              {isRebalanceContext && (
-                <Badge variant="secondary" className="text-xs font-normal">
-                  Rebalance
-                </Badge>
-              )}
             </CardTitle>
             {isAnalyzing ? (
               <Badge variant="default" className="flex items-center gap-1">
@@ -147,14 +136,12 @@ export default function HorizontalWorkflow() {
           {/* Horizontal workflow steps */}
           <WorkflowSteps
             workflowData={workflowData}
-            isRebalanceContext={isRebalanceContext}
             setSelectedStep={setSelectedStep}
           />
 
           {/* Expandable agent status details */}
           <AgentStatusDetails
             workflowData={workflowData}
-            isRebalanceContext={isRebalanceContext}
             isAnalyzing={isAnalyzing}
             activeAnalysisTicker={activeAnalysisTicker}
           />

@@ -37,7 +37,7 @@ export default function Header() {
 
   const hasApiKeys = hasRequiredApiKeys(apiSettings);
 
-  // Check for running analyses and rebalances
+  // Check for running analyses
   useEffect(() => {
     const checkRunningTasks = async () => {
       if (!user) return;

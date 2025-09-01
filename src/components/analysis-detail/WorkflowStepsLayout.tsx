@@ -59,8 +59,6 @@ export default function WorkflowStepsLayout({
     details?: any;
   } | null>(null);
 
-  // Check if this analysis is part of a rebalance request
-  const isRebalanceAnalysis = !!analysisData.rebalance_request_id;
 
   const workflowSteps = [
     {
@@ -110,19 +108,16 @@ export default function WorkflowStepsLayout({
     }
   ];
 
-  // Only add Portfolio Management step if this is NOT a rebalance analysis
-  // For rebalance analyses, the portfolio manager runs once for all stocks together
-  if (!isRebalanceAnalysis) {
-    workflowSteps.push({
-      id: 'portfolio',
-      title: 'Portfolio Management',
-      description: 'Position sizing and trade order generation',
-      icon: Briefcase,
-      agents: [
-        { name: 'Portfolio Manager', key: 'portfolioManager', icon: Briefcase }
-      ]
-    });
-  }
+  // Add Portfolio Management step
+  workflowSteps.push({
+    id: 'portfolio',
+    title: 'Portfolio Management',
+    description: 'Position sizing and trade order generation',
+    icon: Briefcase,
+    agents: [
+      { name: 'Portfolio Manager', key: 'portfolioManager', icon: Briefcase }
+    ]
+  });
 
   const getAgentStatus = (agentKey: string, stepId?: string) => {
     // Check if analysis is cancelled
@@ -281,7 +276,7 @@ export default function WorkflowStepsLayout({
                 </div>
                 <div>
                   <h3 className="text-lg font-semibold">
-                    {isRebalanceAnalysis ? 'Analysis Complete - Decision Ready' : 'Portfolio Manager Decision Ready'}
+                    {false ? 'Analysis Complete - Decision Ready' : 'Portfolio Manager Decision Ready'}
                   </h3>
                   <p className="text-sm text-muted-foreground">
                     {displayDecision === 'HOLD'
@@ -596,8 +591,8 @@ export default function WorkflowStepsLayout({
               Overall Progress
             </h3>
             <p className="text-sm text-muted-foreground mt-1">
-              {isRebalanceAnalysis
-                ? "Stock analysis for rebalance workflow (Portfolio Manager runs after all stocks complete)"
+              {false
+                ? "Stock analysis workflow"
                 : "Analysis workflow execution status"}
             </p>
           </div>

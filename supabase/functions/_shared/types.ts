@@ -15,8 +15,7 @@ export interface AgentRequest {
     risk_max_tokens?: number;
   };
   analysisContext?: {
-    type: 'individual'; // 'rebalance' removed - no longer supported
-    rebalanceRequestId?: string; // Legacy field - kept for backward compatibility
+    type: 'individual';
     skipTradeOrders?: boolean;
   };
   context?: {
@@ -42,50 +41,3 @@ export function getDebateRounds(apiSettings: AgentRequest['apiSettings']): numbe
   return apiSettings.research_debate_rounds || 2;
 }
 
-// Rebalance-specific interfaces (DEPRECATED - kept for backward compatibility)
-// These interfaces are no longer used but kept to avoid breaking changes
-/*
-export interface RebalanceRequest {
-  userId: string;
-  targetAllocations: Record<string, number>; // ticker -> percentage
-  constraints?: {
-    maxPositionSize?: number;
-    minPositionSize?: number;
-    excludeTickers?: string[];
-    includeTickers?: string[];
-    taxStrategy?: 'minimize' | 'harvest_losses' | 'none';
-  };
-}
-
-export interface RebalancePlan {
-  summary: {
-    totalBuyValue: number;
-    totalSellValue: number;
-    estimatedCosts: number;
-    expectedRiskReduction: number;
-    allocationsChange: Record<string, { from: number, to: number }>;
-  };
-
-  actions: Array<{
-    ticker: string;
-    action: 'BUY' | 'SELL' | 'HOLD';
-    currentShares: number;
-    targetShares: number;
-    shareChange: number;
-    currentValue: number;
-    targetValue: number;
-    currentAllocation: number;
-    targetAllocation: number;
-    reasoning: string;
-    analysisId: string; // Link to detailed analysis
-    confidence: number;
-  }>;
-
-  rationale: {
-    overview: string;
-    riskAssessment: string;
-    opportunityCost: string;
-    taxConsiderations: string;
-  };
-}
-*/

@@ -115,43 +115,6 @@ $$;
 
 ALTER FUNCTION "public"."sync_user_profile"() OWNER TO "postgres";
 
-CREATE OR REPLACE FUNCTION "public"."test_schedule_timezone_calc"("p_timezone" "text" DEFAULT 'America/Denver'::"text", "p_time_of_day" time without time zone DEFAULT '11:00:00'::time without time zone) RETURNS TABLE("current_utc" timestamp with time zone, "current_in_tz" timestamp without time zone, "schedule_date" "date", "schedule_local_time" timestamp without time zone, "schedule_utc" timestamp with time zone, "minutes_until" numeric)
-    LANGUAGE "plpgsql"
-    AS $$
-DECLARE
-    v_schedule_date DATE;
-    v_schedule_local_time TIMESTAMP;
-    v_schedule_utc TIMESTAMPTZ;
-BEGIN
-    -- Get today's date in the target timezone
-    v_schedule_date := (NOW() AT TIME ZONE p_timezone)::DATE;
-    
-    -- Combine date and time
-    v_schedule_local_time := v_schedule_date + p_time_of_day;
-    
-    -- Convert to UTC
-    v_schedule_utc := v_schedule_local_time AT TIME ZONE p_timezone;
-    
-    -- If in the past, add a day
-    IF v_schedule_utc < NOW() THEN
-        v_schedule_date := v_schedule_date + INTERVAL '1 day';
-        v_schedule_local_time := v_schedule_date + p_time_of_day;
-        v_schedule_utc := v_schedule_local_time AT TIME ZONE p_timezone;
-    END IF;
-    
-    RETURN QUERY
-    SELECT 
-        NOW(),
-        (NOW() AT TIME ZONE p_timezone)::TIMESTAMP,
-        v_schedule_date,
-        v_schedule_local_time,
-        v_schedule_utc,
-        EXTRACT(EPOCH FROM (v_schedule_utc - NOW())) / 60;
-END;
-$$;
-
-ALTER FUNCTION "public"."test_schedule_timezone_calc"("p_timezone" "text", "p_time_of_day" time without time zone) OWNER TO "postgres";
-
 CREATE OR REPLACE FUNCTION "public"."update_debate_round"("p_analysis_id" "uuid", "p_round" integer, "p_agent_type" "text", "p_response" "text", "p_points" "text"[]) RETURNS boolean
     LANGUAGE "plpgsql"
     AS $$
@@ -1168,10 +1131,6 @@ GRANT ALL ON FUNCTION "public"."handle_updated_at"() TO "service_role";
 GRANT ALL ON FUNCTION "public"."sync_user_profile"() TO "anon";
 GRANT ALL ON FUNCTION "public"."sync_user_profile"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."sync_user_profile"() TO "service_role";
-
-GRANT ALL ON FUNCTION "public"."test_schedule_timezone_calc"("p_timezone" "text", "p_time_of_day" time without time zone) TO "anon";
-GRANT ALL ON FUNCTION "public"."test_schedule_timezone_calc"("p_timezone" "text", "p_time_of_day" time without time zone) TO "authenticated";
-GRANT ALL ON FUNCTION "public"."test_schedule_timezone_calc"("p_timezone" "text", "p_time_of_day" time without time zone) TO "service_role";
 
 GRANT ALL ON FUNCTION "public"."update_debate_round"("p_analysis_id" "uuid", "p_round" integer, "p_agent_type" "text", "p_response" "text", "p_points" "text"[]) TO "anon";
 GRANT ALL ON FUNCTION "public"."update_debate_round"("p_analysis_id" "uuid", "p_round" integer, "p_agent_type" "text", "p_response" "text", "p_points" "text"[]) TO "authenticated";

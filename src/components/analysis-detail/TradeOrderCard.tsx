@@ -34,7 +34,7 @@ interface TradeOrderCardProps {
   isExecuting?: boolean;
 }
 
-// Trade Order Card Component - similar to RebalancePositionCard
+// Trade Order Card Component
 export default function TradeOrderCard({
   analysisData,
   onApprove,

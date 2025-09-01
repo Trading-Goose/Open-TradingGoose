@@ -25,19 +25,6 @@ export default function AnalysisActionsTab({
   isExecuting = false,
   getConfidenceColor
 }: AnalysisActionsTabProps) {
-  // For rebalance analyses, show a message that actions are handled at rebalance level
-  if (analysisData.rebalance_request_id) {
-    return (
-      <div className="rounded-lg border bg-muted/20 p-6 text-center">
-        <Shield className="w-12 h-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-        <h3 className="text-lg font-semibold mb-2">Part of Rebalance Workflow</h3>
-        <p className="text-sm text-muted-foreground">
-          This analysis is part of a portfolio rebalance. Trade orders will be generated
-          after all stock analyses complete and are managed in the Rebalance view.
-        </p>
-      </div>
-    );
-  }
 
   // Get the portfolio manager's decision - check all possible locations
   const portfolioManagerDecision = analysisData.tradeOrder?.action ||  // From actual trade order

@@ -160,10 +160,6 @@ function getPhaseFromAgentName(agentName: string): string {
     return 'portfolio';
   }
 
-  // Rebalance-specific agents
-  if (nameLower.includes('opportunity')) {
-    return 'opportunity';
-  }
 
   // Default to analysis if unclear
   return 'analysis';

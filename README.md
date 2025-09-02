@@ -16,10 +16,6 @@
   - [🎯 Core Concept](#-core-concept)
   - [🔄 Intelligent Execution](#-intelligent-execution)
   - [🏗️ Architecture Foundation](#️-architecture-foundation)
-- [✨ Features](#-features)
-  - [🤖 Multi-Agent Architecture](#-multi-agent-architecture)
-  - [📊 Core Capabilities](#-core-capabilities)
-  - [🔐 Security & Access Control](#-security--access-control)
 - [🛠️ Tech Stack](#️-tech-stack)
   - [🎨 Frontend](#-frontend)
   - [⚙️ Backend](#️-backend)
@@ -28,11 +24,6 @@
   - [🔬 The Analysis Process](#-the-analysis-process)
 - [🚀 Usage](#-usage)
   - [🔍 Running an Analysis](#-running-an-analysis)
-- [🌟 Key Features in Action](#-key-features-in-action)
-  - [🧠 Intelligent Analysis](#-intelligent-analysis)
-  - [💎 Smart Portfolio Management](#-smart-portfolio-management)
-  - [📡 Real-time Monitoring](#-real-time-monitoring)
-- [🔒 Security Considerations](#-security-considerations)
 - [📄 License](#-license)
 - [💬 Support](#-support)
 - [🚀 Self Deployment](#-self-deployment)
@@ -66,36 +57,6 @@ This two-layer approach ensures that while the analysis agents focus on identify
 ### 🏗️ Architecture Foundation
 
 This project's multi-agent analysis workflow architecture is based on the [TauricResearch/TradingAgents](https://github.com/TauricResearch/TradingAgents) framework, which pioneered the concept of collaborative AI agents for financial analysis.
-
-## ✨ Features
-
-### 🤖 Multi-Agent Architecture
-
-- **Coordinator Agent**: Orchestrates analysis workflows and manages agent collaboration
-- **Market Analyst**: Analyzes market trends and technical indicators
-- **Fundamentals Analyst**: Evaluates company financials and valuation metrics
-- **News Analyst**: Processes and interprets market news and events
-- **Social Media Analyst**: Monitors social sentiment and trending topics
-- **Risk Analysts** (Safe/Neutral/Risky): Provides multi-perspective risk assessments
-- **Portfolio Manager**: Optimizes portfolio allocation and trade decisions
-- **Trader Agent**: Executes trades based on collective intelligence
-
-### 📊 Core Capabilities
-
-- **Real-time Market Analysis**: Continuous monitoring of stocks and market conditions
-- **Multi-Stock Analysis**: Analyze multiple stocks simultaneously in a single workflow
-- **Portfolio Management**: Comprehensive portfolio optimization with position sizing and allocation strategies
-- **Live Trade Execution**: Real order execution through Alpaca Markets (paper and live trading)
-- **Risk Assessment**: Multi-dimensional risk analysis from conservative to aggressive perspectives
-- **Workflow Visualization**: Real-time tracking of analysis and decision-making processes
-- **Historical Tracking**: Complete audit trail of analyses and trades
-
-### 🔐 Security & Access Control
-
-- **Role-Based Access Control (RBAC)**: Granular permission system with admin, moderator, and user roles
-- **Secure Authentication**: Supabase-powered authentication with email verification
-- **Invitation System**: Controlled user onboarding through admin-managed invitations
-- **API Key Management**: Secure storage and management of trading API credentials
 
 ## 🛠️ Tech Stack
 
@@ -203,39 +164,6 @@ When you initiate a stock analysis, TradingGoose orchestrates a sophisticated mu
 4. Monitor progress in real-time through the workflow visualization
 5. Review comprehensive insights from all agents
 
-
-## 🌟 Key Features in Action
-
-### 🧠 Intelligent Analysis
-
-- **Multi-perspective evaluation**: Every stock is analyzed from bullish and bearish viewpoints
-- **Risk-adjusted recommendations**: Three risk profiles ensure suitable strategies for all investors
-- **Confidence scoring**: Each recommendation includes transparency about certainty levels
-- **Historical context**: Past performance and patterns inform future predictions
-
-### 💎 Smart Portfolio Management
-
-- **Multi-stock portfolio analysis**: Evaluate entire portfolio health and opportunities across all holdings
-- **Threshold-based triggers**: Customizable sensitivity to market movements
-- **Real order execution**: Direct integration with Alpaca for live market orders
-- **Position sizing algorithms**: Smart allocation based on risk, conviction, and portfolio balance
-- **Tax-aware decisions**: Considers holding periods and tax implications
-- **Dynamic position sizing**: Adjusts positions based on conviction and risk tolerance
-
-### 📡 Real-time Monitoring
-
-- **Live workflow visualization**: Watch agents collaborate in real-time
-- **Progress tracking**: See exactly which phase of analysis is active
-- **Performance metrics**: Track success rates and portfolio growth
-- **Comprehensive audit trail**: Every decision is logged and traceable
-
-## 🔒 Security Considerations
-
-- All API keys are stored encrypted in environment variables
-- Database access is controlled through Row Level Security
-- User actions are authenticated and authorized through RBAC
-- Sensitive operations require admin privileges
-- All trades can be executed in paper trading mode for testing
 
 ## 📄 License
 

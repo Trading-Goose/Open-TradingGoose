@@ -10,6 +10,41 @@
 
 <img src="public/screen-shot.png" >
 
+## 📑 Table of Contents
+
+- [📖 Overview](#-overview)
+  - [🎯 Core Concept](#-core-concept)
+  - [🔄 Intelligent Execution](#-intelligent-execution)
+  - [🏗️ Architecture Foundation](#️-architecture-foundation)
+- [✨ Features](#-features)
+  - [🤖 Multi-Agent Architecture](#-multi-agent-architecture)
+  - [📊 Core Capabilities](#-core-capabilities)
+  - [🔐 Security & Access Control](#-security--access-control)
+- [🛠️ Tech Stack](#️-tech-stack)
+  - [🎨 Frontend](#-frontend)
+  - [⚙️ Backend](#️-backend)
+  - [📈 Trading Integration](#-trading-integration)
+- [🔄 How It Works](#-how-it-works)
+  - [🔬 The Analysis Process](#-the-analysis-process)
+- [🚀 Usage](#-usage)
+  - [🔍 Running an Analysis](#-running-an-analysis)
+- [🌟 Key Features in Action](#-key-features-in-action)
+  - [🧠 Intelligent Analysis](#-intelligent-analysis)
+  - [💎 Smart Portfolio Management](#-smart-portfolio-management)
+  - [📡 Real-time Monitoring](#-real-time-monitoring)
+- [🔒 Security Considerations](#-security-considerations)
+- [📄 License](#-license)
+- [💬 Support](#-support)
+- [🚀 Self Deployment](#-self-deployment)
+  - [Prerequisites](#prerequisites)
+  - [Perplefina Setup](#perplefina-setup)
+  - [Backend Setup](#backend-setup)
+  - [Frontend Setup](#frontend-setup)
+  - [Development Mode](#development-mode)
+- [🚧 Development](#-development)
+  - [✅ Feature Checklist](#-feature-checklist)
+- [🙏 Acknowledgments](#-acknowledgments)
+
 ## 📖 Overview
 
 TradingGoose focuses on **event-driven trading strategy and analysis** that harnesses the power of AI agents and Alpaca's market data to deliver sophisticated trading recommendations and automated portfolio management insights. The system employs a multi-agent workflow architecture where specialized AI agents collaborate to analyze market-moving events in real-time.
@@ -213,7 +248,7 @@ For issues, questions, or suggestions:
 - Open an issue on GitHub
 - Join our [Discord community](https://discord.gg/3dkTaNyp) for support and discussions! 🎮
 
-## 🚀 Getting Started
+## 🚀 Self Deployment
 
 ### Prerequisites
 

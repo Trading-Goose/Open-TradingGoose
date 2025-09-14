@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
@@ -7,9 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { alpacaAPI } from "@/lib/alpaca";
-import { useAuth } from "@/lib/auth";
+import { useAuth, isSessionValid } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
-import { fetchPortfolioData, fetchStockData, type PortfolioData, type StockData } from "@/lib/portfolio-data";
+import { fetchPortfolioData, fetchStockData, type PortfolioData, type StockData, type PortfolioDataPoint } from "@/lib/portfolio-data";
 import { useNavigate } from "react-router-dom";
 
 interface PerformanceChartProps {
@@ -34,36 +34,58 @@ const periods: Array<{ value: TimePeriod; label: string }> = [
 
 // Remove the old hardcoded function - we'll create a dynamic one in the component
 
-const PerformanceChart = ({ selectedStock, onClearSelection }: PerformanceChartProps) => {
+const PerformanceChart = React.memo(({ selectedStock, onClearSelection }: PerformanceChartProps) => {
   const navigate = useNavigate();
   const [selectedPeriod, setSelectedPeriod] = useState<TimePeriod>("1D");
   const [loading, setLoading] = useState(false);
+  const [positionsLoading, setPositionsLoading] = useState(true); // Track positions loading separately
   const [error, setError] = useState<string | null>(null);
   const [metrics, setMetrics] = useState<any>(null);
   const [portfolioData, setPortfolioData] = useState<PortfolioData | null>(null);
   const [stockData, setStockData] = useState<StockData>({});
   const [positions, setPositions] = useState<any[]>([]);
   const [hasAlpacaConfig, setHasAlpacaConfig] = useState(true); // Assume configured initially
-  const { apiSettings } = useAuth();
+  const { apiSettings, isAuthenticated } = useAuth();
   const { toast } = useToast();
 
-  // Fetch data on component mount and when selectedStock changes
-  useEffect(() => {
-    fetchData();
-  }, [apiSettings, selectedStock]);
+  // Track if we've already fetched for current apiSettings and selectedStock
+  const fetchedRef = useRef<string>('');
+  const lastFetchTimeRef = useRef<number>(0);
+  const metricsLoaded = useRef(false);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async (period: string) => {
+    // Debounce fetches - don't fetch if we just fetched less than 2 seconds ago
+    const now = Date.now();
+    if (now - lastFetchTimeRef.current < 2000) {
+      return;
+    }
+    lastFetchTimeRef.current = now;
+
     setLoading(true);
     setError(null);
 
     try {
-      // First try to fetch portfolio data (doesn't require Alpaca API)
-      const portfolioHistoryData = await fetchPortfolioData();
-      setPortfolioData(portfolioHistoryData);
+      // Fetch data for the specific period
+      if (selectedStock) {
+        // Check if we already have this data
+        if (!stockData[selectedStock]) {
+          const stockHistoryData = await fetchStockData(selectedStock);
+          setStockData(prev => ({
+            ...prev,
+            [selectedStock]: stockHistoryData
+          }));
+        }
+      } else {
+        // Fetch portfolio data if not cached
+        if (!portfolioData) {
+          const portfolioHistoryData = await fetchPortfolioData();
+          setPortfolioData(portfolioHistoryData);
+        }
+      }
 
-      // Try to fetch metrics (which now uses batch internally)
-      // The edge functions will handle checking if Alpaca is configured
-      const metricsData = await alpacaAPI.calculateMetrics().catch(err => {
+      // Try to fetch metrics only once (not period-specific)
+      if (!metricsLoaded.current) {
+        const metricsData = await alpacaAPI.calculateMetrics().catch(err => {
         console.warn("Failed to calculate metrics:", err);
         // Check if it's a configuration error
         if (err.message?.includes('API settings not found') ||
@@ -100,66 +122,33 @@ const PerformanceChart = ({ selectedStock, onClearSelection }: PerformanceChartP
         return null;
       });
 
-      // Positions are now included in metrics data
-      const positionsData = metricsData?.positions || [];
+        // Positions are now included in metrics data
+        const positionsData = metricsData?.positions || [];
 
-      setMetrics(metricsData);
-      setPositions(positionsData || []);
+        setMetrics(metricsData);
+        setPositions(positionsData || []);
+        setPositionsLoading(false); // Mark positions as loaded
+        metricsLoaded.current = true;
+      }
 
-      // If a stock is selected, fetch its data (uses Alpaca API)
-      if (selectedStock) {
+      // Fetch daily change for selected stock if needed
+      if (selectedStock && period === '1D') {
         try {
-          console.log(`Fetching stock data for ${selectedStock}...`);
-          const stockHistoryData = await fetchStockData(selectedStock);
-          console.log(`Received stock data for ${selectedStock}:`, {
-            hasData: !!stockHistoryData,
-            periods: Object.keys(stockHistoryData || {}),
-            '1D_length': stockHistoryData?.['1D']?.length || 0,
-            '1W_length': stockHistoryData?.['1W']?.length || 0,
-            '1M_length': stockHistoryData?.['1M']?.length || 0
-          });
-          setStockData(prev => {
-            const newState = { ...prev, [selectedStock]: stockHistoryData };
-            console.log(`Updated stockData state for ${selectedStock}`);
-            return newState;
+          const batchData = await alpacaAPI.getBatchData([selectedStock], {
+            includeQuotes: true,
+            includeBars: true
           });
 
-          // Fetch daily change using batch method
-          try {
-            const batchData = await alpacaAPI.getBatchData([selectedStock], {
-              includeQuotes: true,
-              includeBars: true
-            });
-
-            const data = batchData[selectedStock];
-            if (data?.quote && data?.previousBar) {
-              const currentPrice = data.quote.ap || data.quote.bp || 0;
-              const previousClose = data.previousBar.c;
-              const dayChange = currentPrice - previousClose;
-              const dayChangePercent = previousClose > 0 ? (dayChange / previousClose) * 100 : 0;
-
-              setStockDailyChanges(prev => ({
-                ...prev,
-                [selectedStock]: { change: dayChange, changePercent: dayChangePercent }
-              }));
-
-              console.log(`Daily change for ${selectedStock}: $${dayChange.toFixed(2)} (${dayChangePercent.toFixed(2)}%)`);
-            }
-          } catch (err) {
-            console.warn(`Could not fetch daily change for ${selectedStock}:`, err);
+          const data = batchData[selectedStock];
+          if (data?.quote && data?.previousBar) {
+            const currentPrice = data.quote.ap || data.quote.bp || 0;
+            const previousClose = data.previousBar.c;
+            const dayChange = currentPrice - previousClose;
+            // const dayChangePercent = previousClose > 0 ? (dayChange / previousClose) * 100 : 0;
+            console.log(`Daily change for ${selectedStock}: $${dayChange.toFixed(2)}`);
           }
         } catch (err) {
-          console.error(`Error fetching data for ${selectedStock}:`, err);
-          // Check if it's an API configuration error for stock data
-          if (err instanceof Error &&
-            (err.message.includes('API settings not found') ||
-              err.message.includes('not configured') ||
-              err.message.includes('Edge Function returned a non-2xx status code'))) {
-            setHasAlpacaConfig(false);
-            setError(null); // Don't show error for missing API config
-          } else {
-            setError(`Failed to fetch data for ${selectedStock}: ${err instanceof Error ? err.message : 'Unknown error'}`);
-          }
+          console.warn(`Could not fetch daily change for ${selectedStock}:`, err);
         }
       }
     } catch (err) {
@@ -184,10 +173,35 @@ const PerformanceChart = ({ selectedStock, onClearSelection }: PerformanceChartP
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedStock, portfolioData, stockData, toast]);
+
+  // Fetch data when period or stock changes
+  useEffect(() => {
+    // Don't fetch if not authenticated or session is invalid
+    if (!isAuthenticated || !isSessionValid()) {
+      console.log('PerformanceChart: Skipping fetch - session invalid or not authenticated');
+      return;
+    }
+    
+    const fetchKey = `${selectedStock || 'portfolio'}-${selectedPeriod}`;
+    
+    // Avoid duplicate fetches for the same configuration
+    if (fetchedRef.current === fetchKey) {
+      return;
+    }
+    
+    fetchedRef.current = fetchKey;
+    
+    // Add a small delay on initial mount to ensure session is settled
+    const timeoutId = setTimeout(() => {
+      fetchData(selectedPeriod);
+    }, 500);
+    
+    return () => clearTimeout(timeoutId);
+  }, [selectedStock, selectedPeriod, fetchData, isAuthenticated]); // Include fetchData and isAuthenticated in dependencies
 
   // Get real stock metrics from positions
-  const getStockMetrics = (symbol: string) => {
+  const getStockMetrics = useCallback((symbol: string) => {
     const position = positions.find((p: any) => p.symbol === symbol);
 
     if (!position) {
@@ -208,15 +222,19 @@ const PerformanceChart = ({ selectedStock, onClearSelection }: PerformanceChartP
       };
     }
 
-    const shares = parseFloat(position.qty);
-    const avgCost = parseFloat(position.avg_entry_price);
-    const currentPrice = parseFloat(position.current_price || 'Loading...');
-    const lastdayPrice = parseFloat(position.lastday_price || 'Loading...');
-    const marketValue = parseFloat(position.market_value);
-    const unrealizedPL = parseFloat(position.unrealized_pl);
-    const unrealizedPLPercent = parseFloat(position.unrealized_plpc) * 100;
-    const todayPL = parseFloat(position.unrealized_intraday_pl || 'Loading...');
-    const todayPLPercent = parseFloat(position.unrealized_intraday_plpc || 'Loading...') * 100;
+    // Handle both raw Alpaca format and transformed metrics format
+    const shares = position.shares !== undefined ? position.shares : (parseFloat(position.qty || '0') || 0);
+    const avgCost = position.avgCost !== undefined ? position.avgCost : (parseFloat(position.avg_entry_price || '0') || 0);
+    const currentPrice = position.currentPrice !== undefined ? position.currentPrice : (parseFloat(position.current_price || '0') || 0);
+    const lastdayPrice = position.lastdayPrice !== undefined ? position.lastdayPrice : (parseFloat(position.lastday_price || '0') || 0);
+    const marketValue = position.marketValue !== undefined ? position.marketValue : (parseFloat(position.market_value || '0') || 0);
+    const unrealizedPL = position.unrealizedPL !== undefined ? position.unrealizedPL : (parseFloat(position.unrealized_pl || '0') || 0);
+    const unrealizedPLPercent = position.unrealizedPLPct !== undefined ? position.unrealizedPLPct : ((parseFloat(position.unrealized_plpc || '0') || 0) * 100);
+    
+    // For intraday P/L, calculate from day change if not directly available
+    const dayChange = position.dayChange !== undefined ? position.dayChange : 0;
+    const todayPL = position.unrealized_intraday_pl !== undefined ? parseFloat(position.unrealized_intraday_pl || '0') : (dayChange * shares * currentPrice / 100);
+    const todayPLPercent = position.unrealized_intraday_plpc !== undefined ? (parseFloat(position.unrealized_intraday_plpc || '0') * 100) : dayChange;
 
     // Calculate stock's daily price change (not position P&L)
     const stockDailyChange = currentPrice - lastdayPrice;
@@ -241,65 +259,51 @@ const PerformanceChart = ({ selectedStock, onClearSelection }: PerformanceChartP
       currentPrice,
       lastdayPrice
     };
-  };
+  }, [positions, metrics]);
 
   // Get appropriate data based on selection
-  const getCurrentData = () => {
-    // Debug logging
-    console.log('getCurrentData called:', {
-      selectedStock,
-      selectedPeriod,
-      hasPortfolioData: !!portfolioData,
-      stockDataKeys: Object.keys(stockData),
-      stockDataForSelected: selectedStock ? stockData[selectedStock] : null,
-      stockDataPeriods: selectedStock && stockData[selectedStock] ? Object.keys(stockData[selectedStock]) : [],
-    });
-
-    // Check for real stock data first (even if no portfolio data)
+  const getCurrentData = useCallback(() => {
+    // Check for real stock data first
     if (selectedStock && stockData[selectedStock]) {
       const periodData = stockData[selectedStock][selectedPeriod];
-      console.log(`Stock data for ${selectedStock} ${selectedPeriod}:`, {
-        exists: !!periodData,
-        length: periodData?.length || 0,
-        sample: periodData?.[0]
-      });
-
       if (periodData && Array.isArray(periodData) && periodData.length > 0) {
-        console.log(`Returning ${periodData.length} real data points for ${selectedStock} ${selectedPeriod}`);
         return periodData;
-      } else {
-        console.warn(`No valid data for ${selectedStock} ${selectedPeriod} - periodData:`, periodData);
       }
     }
 
     // Check for portfolio data
     if (!selectedStock && portfolioData && portfolioData[selectedPeriod]) {
       const data = portfolioData[selectedPeriod];
-      console.log(`Returning ${data.length} portfolio data points for ${selectedPeriod}`);
       return data;
     }
 
     // No data available
-    console.log('No data available for display', {
-      selectedStock,
-      selectedPeriod,
-      hasStockData: !!stockData[selectedStock],
-      hasPortfolioData: !!portfolioData?.[selectedPeriod]
-    });
     return [];
-  };
+  }, [selectedStock, stockData, selectedPeriod, portfolioData]);
 
-  const currentData = getCurrentData();
+  const currentData = useMemo(() => getCurrentData(), [getCurrentData]);
+  
+  // Custom tick formatter for X-axis based on period
+  const formatXAxisTick = useCallback((value: string) => {
+    // For 1M period, show abbreviated format
+    if (selectedPeriod === '1M' || selectedPeriod === '3M' || selectedPeriod === 'YTD' || selectedPeriod === '1Y') {
+      // If the value already looks like "Sep 12", keep it
+      // Otherwise try to format it consistently
+      return value;
+    }
+    return value;
+  }, [selectedPeriod]);
+  
   const latestValue = currentData[currentData.length - 1] || { value: 0, pnl: 0 };
   const firstValue = currentData[0] || { value: 0, pnl: 0 };
   const totalReturn = latestValue.pnl || (latestValue.value - firstValue.value);
-  const totalReturnPercent = latestValue.pnlPercent ?
-    parseFloat(latestValue.pnlPercent).toFixed(2) :
+  const totalReturnPercent = 'pnlPercent' in latestValue && latestValue.pnlPercent ?
+    parseFloat(String(latestValue.pnlPercent)).toFixed(2) :
     (firstValue.value > 0 ? ((totalReturn / firstValue.value) * 100).toFixed(2) : '0.00');
   const isPositive = totalReturn >= 0;
 
   // Calculate dynamic Y-axis domain for better visibility of small changes
-  const getYAxisDomain = () => {
+  const getYAxisDomain = useCallback(() => {
     if (currentData.length === 0 || !firstValue || firstValue.value === 0) {
       return ['auto', 'auto'];
     }
@@ -349,37 +353,19 @@ const PerformanceChart = ({ selectedStock, onClearSelection }: PerformanceChartP
       return ['auto', 'auto'];
     }
 
-    console.log('Y-axis domain calculation:', {
-      lowestValue,
-      highestValue,
-      range,
-      padding: actualPadding,
-      domainMin,
-      domainMax,
-      viewportRange: domainMax - domainMin,
-      isStock: !!selectedStock,
-      period: selectedPeriod
-    });
+    // Debug logging removed to prevent console spam
 
     return [domainMin, domainMax];
-  };
+  }, [currentData, selectedStock, selectedPeriod, firstValue]);
 
-  const yAxisDomain = getYAxisDomain();
+  const yAxisDomain = useMemo(() => getYAxisDomain(), [getYAxisDomain]);
   // For 1D view with selected stock, use the reference price (previous close)
   // which would make the first value show 0 change
   const startPrice = selectedPeriod === '1D' && selectedStock && firstValue?.pnl === 0
     ? firstValue.value
     : (firstValue?.value || 0);
 
-  // Debug logging for chart data
-  console.log('Chart rendering debug:', {
-    currentDataLength: currentData.length,
-    firstValue,
-    latestValue,
-    yAxisDomain,
-    startPrice,
-    isPositive
-  });
+  // Debug logging removed to prevent console spam
 
   return (
     <Card>
@@ -400,6 +386,20 @@ const PerformanceChart = ({ selectedStock, onClearSelection }: PerformanceChartP
                 </Button>
               </div>
             )}
+          </div>
+          <div className="text-xs text-muted-foreground">
+            Data may be incomplete or delayed.{' '}
+            <a
+              href={selectedStock 
+                ? `https://app.alpaca.markets/trade/${selectedStock}`
+                : 'https://app.alpaca.markets/dashboard/overview'
+              }
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary hover:underline"
+            >
+              View on Alpaca →
+            </a>
           </div>
         </div>
       </CardHeader>
@@ -433,7 +433,7 @@ const PerformanceChart = ({ selectedStock, onClearSelection }: PerformanceChartP
           {periods.map((period) => (
             <TabsContent key={period.value} value={period.value} className="space-y-4">
               <div className="h-48">
-                {loading && !portfolioData ? (
+                {loading ? (
                   <div className="h-full flex items-center justify-center">
                     <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                   </div>
@@ -446,6 +446,9 @@ const PerformanceChart = ({ selectedStock, onClearSelection }: PerformanceChartP
                         tick={{ fontSize: 11 }}
                         tickLine={false}
                         axisLine={false}
+                        interval="preserveStartEnd"
+                        minTickGap={50}
+                        tickFormatter={formatXAxisTick}
                       />
                       <YAxis
                         domain={yAxisDomain}
@@ -512,7 +515,7 @@ const PerformanceChart = ({ selectedStock, onClearSelection }: PerformanceChartP
                   </ResponsiveContainer>
                 ) : (
                   <div className="h-full flex items-center justify-center text-muted-foreground">
-                    {error ? error : (hasAlpacaConfig ? "No data available for this period" : "Configure Alpaca API to view performance data")}
+                    {error ? error : (hasAlpacaConfig ? "Loading chart data..." : "Configure Alpaca API to view performance data")}
                   </div>
                 )}
               </div>
@@ -621,41 +624,57 @@ const PerformanceChart = ({ selectedStock, onClearSelection }: PerformanceChartP
                   <div className="grid grid-cols-3 gap-4 pt-4 border-t">
                     <div>
                       <p className="text-xs text-muted-foreground">Position P&L Today</p>
-                      <p className={`text-sm font-medium ${getStockMetrics(selectedStock).dailyReturn >= 0 ? 'text-success' : 'text-danger'
+                      <p className={`text-sm font-medium ${positionsLoading ? '' : getStockMetrics(selectedStock).dailyReturn >= 0 ? 'text-success' : 'text-danger'
                         }`}>
-                        {getStockMetrics(selectedStock).dailyReturn >= 0 ? '+' : ''}
-                        ${getStockMetrics(selectedStock).dailyReturn.toFixed(2)}
-                        ({getStockMetrics(selectedStock).dailyReturnPercent >= 0 ? '+' : ''}
-                        {getStockMetrics(selectedStock).dailyReturnPercent.toFixed(2)}%)
+                        {positionsLoading ? 'Loading...' : (
+                          <>
+                            {getStockMetrics(selectedStock).dailyReturn >= 0 ? '+' : ''}
+                            ${getStockMetrics(selectedStock).dailyReturn.toFixed(2)}
+                            ({getStockMetrics(selectedStock).dailyReturnPercent >= 0 ? '+' : ''}
+                            {getStockMetrics(selectedStock).dailyReturnPercent.toFixed(2)}%)
+                          </>
+                        )}
                       </p>
                     </div>
                     <div>
                       <p className="text-xs text-muted-foreground">Total Position P&L</p>
-                      <p className={`text-sm font-medium ${getStockMetrics(selectedStock).totalReturn >= 0 ? 'text-success' : 'text-danger'
+                      <p className={`text-sm font-medium ${positionsLoading ? '' : getStockMetrics(selectedStock).totalReturn >= 0 ? 'text-success' : 'text-danger'
                         }`}>
-                        {getStockMetrics(selectedStock).totalReturn >= 0 ? '+' : ''}
-                        ${getStockMetrics(selectedStock).totalReturn.toFixed(2)}
-                        ({getStockMetrics(selectedStock).totalReturnPercent >= 0 ? '+' : ''}
-                        {getStockMetrics(selectedStock).totalReturnPercent.toFixed(2)}%)
+                        {positionsLoading ? 'Loading...' : (
+                          <>
+                            {getStockMetrics(selectedStock).totalReturn >= 0 ? '+' : ''}
+                            ${getStockMetrics(selectedStock).totalReturn.toFixed(2)}
+                            ({getStockMetrics(selectedStock).totalReturnPercent >= 0 ? '+' : ''}
+                            {getStockMetrics(selectedStock).totalReturnPercent.toFixed(2)}%)
+                          </>
+                        )}
                       </p>
                     </div>
                     <div>
                       <p className="text-xs text-muted-foreground">Shares Owned</p>
-                      <p className="text-sm font-medium">{getStockMetrics(selectedStock).shares}</p>
+                      <p className="text-sm font-medium">
+                        {positionsLoading ? 'Loading...' : getStockMetrics(selectedStock).shares}
+                      </p>
                     </div>
                   </div>
                   <div className="grid grid-cols-3 gap-4 pt-4 border-t">
                     <div>
                       <p className="text-xs text-muted-foreground">Avg Cost</p>
-                      <p className="text-sm font-medium">${getStockMetrics(selectedStock).avgCost.toFixed(2)}</p>
+                      <p className="text-sm font-medium">
+                        {positionsLoading ? 'Loading...' : `$${getStockMetrics(selectedStock).avgCost.toFixed(2)}`}
+                      </p>
                     </div>
                     <div>
                       <p className="text-xs text-muted-foreground">Total Position</p>
-                      <p className="text-sm font-medium">${getStockMetrics(selectedStock).positionValue.toLocaleString()}</p>
+                      <p className="text-sm font-medium">
+                        {positionsLoading ? 'Loading...' : `$${getStockMetrics(selectedStock).positionValue.toLocaleString()}`}
+                      </p>
                     </div>
                     <div>
                       <p className="text-xs text-muted-foreground">% of Portfolio</p>
-                      <p className="text-sm font-medium">{getStockMetrics(selectedStock).portfolioPercent.toFixed(1)}%</p>
+                      <p className="text-sm font-medium">
+                        {positionsLoading ? 'Loading...' : `${getStockMetrics(selectedStock).portfolioPercent.toFixed(1)}%`}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -666,6 +685,8 @@ const PerformanceChart = ({ selectedStock, onClearSelection }: PerformanceChartP
       </CardContent>
     </Card>
   );
-};
+});
+
+PerformanceChart.displayName = 'PerformanceChart';
 
 export default PerformanceChart;

@@ -1,11 +1,14 @@
+import { useState } from "react";
 import {
   Activity,
   ArrowRight,
   Shield,
   TrendingDown,
-  TrendingUp
+  TrendingUp,
+  RefreshCw
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import TradeOrderCard from "./TradeOrderCard";
 
 interface AnalysisActionsTabProps {
@@ -26,13 +29,18 @@ export default function AnalysisActionsTab({
   getConfidenceColor
 }: AnalysisActionsTabProps) {
 
-  // Get the portfolio manager's decision - check all possible locations
-  const portfolioManagerDecision = analysisData.tradeOrder?.action ||  // From actual trade order
-                                   analysisData.agent_insights?.portfolioManager?.finalDecision?.action || 
-                                   analysisData.agent_insights?.portfolioManager?.decision?.action ||
-                                   analysisData.agent_insights?.portfolioManager?.action ||
-                                   analysisData.agent_insights?.portfolioManager?.decision || 
-                                   analysisData.decision;
+  // IMPORTANT: Prioritize the Portfolio Manager's current decision over any old trade orders
+  const pmDecision = analysisData.agent_insights?.portfolioManager?.finalDecision?.action || 
+                     analysisData.agent_insights?.portfolioManager?.decision?.action ||
+                     analysisData.agent_insights?.portfolioManager?.action ||
+                     analysisData.agent_insights?.portfolioManager?.decision || 
+                     analysisData.decision;
+  
+  // Only use trade order action if it matches the Portfolio Manager's decision
+  // Otherwise use the Portfolio Manager's decision
+  const portfolioManagerDecision = (analysisData.tradeOrder?.action && analysisData.tradeOrder?.action === pmDecision)
+                                   ? analysisData.tradeOrder.action
+                                   : pmDecision;
 
   return (
     <div className="space-y-4">

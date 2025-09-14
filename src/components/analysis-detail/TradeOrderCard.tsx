@@ -1,4 +1,5 @@
 import {
+  Activity,
   AlertCircle,
   ArrowUpRight,
   ArrowDownRight,
@@ -45,12 +46,19 @@ export default function TradeOrderCard({
   // Use the actual trade order data if available (from trading_actions table)
   const tradeOrder = analysisData.tradeOrder;
   
-  // Use Portfolio Manager's decision if available, preferring trade order action
-  const decision = tradeOrder?.action ||
-                   analysisData.agent_insights?.portfolioManager?.finalDecision?.action || 
-                   analysisData.agent_insights?.portfolioManager?.decision?.action ||
-                   analysisData.agent_insights?.portfolioManager?.action ||
-                   analysisData.decision;
+  // IMPORTANT: Prioritize the Portfolio Manager's current decision over any old trade orders
+  // The trade order might be from a different/old analysis, so we check PM's decision first
+  const portfolioManagerDecision = analysisData.agent_insights?.portfolioManager?.finalDecision?.action || 
+                                   analysisData.agent_insights?.portfolioManager?.decision?.action ||
+                                   analysisData.agent_insights?.portfolioManager?.action ||
+                                   analysisData.agent_insights?.portfolioManager?.decision ||
+                                   analysisData.decision;
+  
+  // Only use trade order action if it matches the Portfolio Manager's decision
+  // Otherwise use the Portfolio Manager's decision
+  const decision = (tradeOrder?.action && tradeOrder?.action === portfolioManagerDecision) 
+                   ? tradeOrder.action 
+                   : portfolioManagerDecision;
   const confidence = analysisData.confidence;
   const ticker = analysisData.ticker;
 
@@ -127,14 +135,26 @@ export default function TradeOrderCard({
     afterValue
   });
 
-  // If we have an actual trade order from the database, always show it
-  // Only show HOLD message if there's no trade order AND the decision is HOLD
-  if (!tradeOrder && !finalDecision && decision === 'HOLD') {
+  // Show HOLD message if Portfolio Manager's decision is HOLD
+  // Even if there's an old trade order, respect the current PM decision
+  if (decision === 'HOLD' || (!tradeOrder && !finalDecision && decision === 'HOLD')) {
     return (
       <div className="rounded-lg border bg-muted/20 p-4 opacity-60">
         <div className="flex items-center gap-3">
           <Badge variant="outline">HOLD</Badge>
           <span className="text-sm text-muted-foreground">Portfolio Manager decided to hold - no action required</span>
+        </div>
+      </div>
+    );
+  }
+  
+  // Don't show trade order if it doesn't match the current decision
+  if (tradeOrder && tradeOrder.action !== decision) {
+    return (
+      <div className="rounded-lg border bg-yellow-500/5 border-yellow-500/20 p-4">
+        <div className="flex items-center gap-3">
+          <AlertCircle className="w-4 h-4 text-yellow-500" />
+          <span className="text-sm">Trade order mismatch - Portfolio Manager decision: {decision || 'HOLD'}</span>
         </div>
       </div>
     );
@@ -309,8 +329,8 @@ export default function TradeOrderCard({
             </Badge>
           )}
 
-          {/* Only show action buttons for pending decisions */}
-          {isPending && !isApproved && !isRejected && (
+          {/* Only show action buttons for pending decisions and NOT HOLD orders */}
+          {isPending && !isApproved && !isRejected && decision !== 'HOLD' && (
             <>
               <Button
                 size="sm"

@@ -249,12 +249,18 @@ export default function WorkflowStepsLayout({
     <div className="space-y-6">
       {/* Trade Decision Summary Card - Show at top if decision is made */}
       {(() => {
-        // Always show Portfolio Manager's decision if available
-        const displayDecision = analysisData.tradeOrder?.action ||  // From actual trade order
-                               analysisData.agent_insights?.portfolioManager?.finalDecision?.action || 
-                               analysisData.agent_insights?.portfolioManager?.decision?.action ||
-                               analysisData.agent_insights?.portfolioManager?.action ||
-                               analysisData.decision;
+        // IMPORTANT: Prioritize the Portfolio Manager's current decision over any old trade orders
+        const portfolioManagerDecision = analysisData.agent_insights?.portfolioManager?.finalDecision?.action || 
+                                         analysisData.agent_insights?.portfolioManager?.decision?.action ||
+                                         analysisData.agent_insights?.portfolioManager?.action ||
+                                         analysisData.agent_insights?.portfolioManager?.decision ||
+                                         analysisData.decision;
+        
+        // Only use trade order action if it matches the Portfolio Manager's decision
+        // Otherwise use the Portfolio Manager's decision
+        const displayDecision = (analysisData.tradeOrder?.action && analysisData.tradeOrder?.action === portfolioManagerDecision)
+                               ? analysisData.tradeOrder.action
+                               : portfolioManagerDecision;
 
         const shouldShow = displayDecision && displayDecision !== 'CANCELED' && 
           analysisData.status === ANALYSIS_STATUS.COMPLETED &&

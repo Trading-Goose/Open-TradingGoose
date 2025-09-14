@@ -280,10 +280,12 @@ export async function executeAnalysisDecision(
     );
   }
   
-  // Execute trade if needed
+  // Execute trade if needed - ONLY for BUY or SELL, never for HOLD
   const shouldExecuteTrade = 
-    (effectiveDecision === 'BUY' && positionSizing.dollarAmount > 0) ||
-    (effectiveDecision === 'SELL' && (positionSizing.dollarAmount > 0 || currentPosition));
+    effectiveDecision !== 'HOLD' && (
+      (effectiveDecision === 'BUY' && positionSizing.dollarAmount > 0) ||
+      (effectiveDecision === 'SELL' && (positionSizing.dollarAmount > 0 || currentPosition))
+    );
   
   if (shouldExecuteTrade) {
     const { executeTradeOrder } = await import('./individual-helpers.ts');

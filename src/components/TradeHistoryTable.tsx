@@ -339,8 +339,8 @@ export default function TradeHistoryTable() {
             <div className="space-y-1 flex-1">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="font-semibold text-sm">{decision.symbol}</span>
-                <Badge 
-                  variant={decision.action === 'BUY' ? 'buy' : decision.action === 'SELL' ? 'sell' : 'hold'} 
+                <Badge
+                  variant={decision.action === 'BUY' ? 'buy' : decision.action === 'SELL' ? 'sell' : 'hold'}
                   className="text-xs"
                 >
                   {decision.action}
@@ -408,9 +408,7 @@ export default function TradeHistoryTable() {
                   className="h-7 px-2 text-xs border-slate-700"
                   onClick={() => {
                     const isPaper = true; // Default to paper trading
-                    const baseUrl = isPaper
-                      ? 'https://paper.alpaca.markets'
-                      : 'https://app.alpaca.markets';
+                    const baseUrl = 'https://app.alpaca.markets';
                     window.open(`${baseUrl}/dashboard/order/${decision.alpacaOrderId}`, '_blank');
                   }}
                 >
@@ -507,7 +505,7 @@ export default function TradeHistoryTable() {
             )}
           </div>
         </div>
-        
+
         {/* Metadata - at bottom of card */}
         <div className="flex items-center gap-2 text-xs text-muted-foreground border-t border-slate-800 pt-2">
           {decision.agent && !decision.agent.toLowerCase().includes('portfolio') && (
@@ -602,7 +600,7 @@ export default function TradeHistoryTable() {
           </Button>
         </div>
       </CardHeader>
-      
+
       <CardContent>
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-5">
@@ -627,23 +625,23 @@ export default function TradeHistoryTable() {
               <span className="hidden sm:inline">Rejected ({getFilteredTrades('rejected').length})</span>
             </TabsTrigger>
           </TabsList>
-          
+
           <TabsContent value="all" className="mt-6">
             {renderContent(getFilteredTrades('all'))}
           </TabsContent>
-          
+
           <TabsContent value="pending" className="mt-6">
             {renderContent(getFilteredTrades('pending'))}
           </TabsContent>
-          
+
           <TabsContent value="approved" className="mt-6">
             {renderContent(getFilteredTrades('approved'))}
           </TabsContent>
-          
+
           <TabsContent value="executed" className="mt-6">
             {renderContent(getFilteredTrades('executed'))}
           </TabsContent>
-          
+
           <TabsContent value="rejected" className="mt-6">
             {renderContent(getFilteredTrades('rejected'))}
           </TabsContent>

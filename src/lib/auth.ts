@@ -2,6 +2,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { supabase } from './supabase';
+import { getCachedSession, clearSessionCache, updateCachedSession } from './cachedAuth';
 import type { User, Session } from '@supabase/supabase-js';
 
 // Types
@@ -86,16 +87,18 @@ export const useAuth = create<AuthState>()(
         set({ isLoading: true, error: null });
 
         try {
-          // Get current session with refresh if needed
-          let { data: { session }, error: sessionError } = await supabase.auth.getSession();
+          // Get current session from cache to reduce API calls
+          let session = await getCachedSession();
+          let sessionError: any = null;
 
           // If we have a session, try to refresh it to ensure it's valid
           if (session && !sessionError) {
             const { data: { session: refreshedSession }, error: refreshError } = await supabase.auth.refreshSession();
             if (refreshedSession && !refreshError) {
               console.log('🔐 Auth: Session refreshed successfully');
-              // Use the refreshed session
+              // Use the refreshed session and update cache
               session = refreshedSession;
+              updateCachedSession(refreshedSession);
             } else if (refreshError) {
               console.warn('Failed to refresh session:', refreshError);
               // Continue with existing session
@@ -225,6 +228,9 @@ export const useAuth = create<AuthState>()(
       login: async (email: string, password: string) => {
         console.log('🔐 Login attempt for:', email);
         set({ isLoading: true, error: null });
+        
+        // Clear cached sessions before login to avoid conflicts
+        clearSessionCache();
 
         try {
           const { data, error } = await supabase.auth.signInWithPassword({
@@ -238,6 +244,11 @@ export const useAuth = create<AuthState>()(
           }
 
           if (data.session) {
+            console.log('🔐 Login successful, updating cached session');
+            
+            // Update the cache with the fresh session
+            updateCachedSession(data.session);
+            
             // The auth state change listener will handle initialization
             // Just set the basic state here
             set({
@@ -269,6 +280,9 @@ export const useAuth = create<AuthState>()(
         set({ isLoading: true });
 
         try {
+          // Clear cached session first
+          clearSessionCache();
+          
           // Clear state first
           set({
             session: null,
@@ -442,9 +456,10 @@ export const initializeAuth = () => {
         await useAuth.getState().initialize();
       }
     } else if (event === 'TOKEN_REFRESHED') {
-      // Token was refreshed, update the session
+      // Token was refreshed, update the session and cache
       if (session) {
         console.log('🔐 Token refreshed, updating session');
+        updateCachedSession(session);
         useAuth.setState({
           session,
           user: session.user,
@@ -517,4 +532,106 @@ export const validateDeepSeekKey = (key: string): boolean => {
 
 export const validateGoogleKey = (key: string): boolean => {
   return key.startsWith('AIza') && key.length > 30;
+};
+
+// Helper function to check if the session is valid and not expired
+export const isSessionValid = (): boolean => {
+  const state = useAuth.getState();
+  
+  // Check if we have an invalid refresh token flag
+  if ((window as any).__invalidRefreshToken) {
+    console.log('🔐 isSessionValid: Invalid refresh token detected, returning false');
+    return false;
+  }
+  
+  // If authenticated, allow it - the token refresh system will handle expiry
+  if (state.isAuthenticated && state.session?.access_token) {
+    try {
+      const payload = JSON.parse(atob(state.session.access_token.split('.')[1]));
+      const tokenExp = payload.exp;
+      const now = Math.floor(Date.now() / 1000);
+      const timeUntilExpiry = tokenExp - now;
+      
+      // Only return false if token is expired by more than 2 hours (very expired)
+      // This prevents normal token refresh scenarios from blocking the UI
+      if (timeUntilExpiry < -7200) {
+        console.log('🔐 isSessionValid: Token very expired (>2h), returning false');
+        return false;
+      }
+      
+      console.log('🔐 isSessionValid: User is authenticated, returning true');
+      return true;
+    } catch (e) {
+      // If we can't decode the token, still return true if authenticated
+      console.log('🔐 isSessionValid: User is authenticated (fallback), returning true');
+      return true;
+    }
+  }
+  
+  // If we're rate limited, consider session as valid to prevent unnecessary API calls
+  if ((window as any).__supabaseRateLimited) {
+    console.log('🔐 isSessionValid: Rate limited, returning true');
+    return true;
+  }
+  
+  // If auth is still loading, consider session as valid to prevent premature failures
+  if (state.isLoading) {
+    console.log('🔐 isSessionValid: Loading, returning true');
+    return true;
+  }
+  
+  // Check if we have a valid session in localStorage that we can restore
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+  const storageKey = `sb-${supabaseUrl.split('//')[1].split('.')[0]}-auth-token`;
+  const storedSession = localStorage.getItem(storageKey);
+  
+  if (storedSession) {
+    try {
+      const sessionData = JSON.parse(storedSession);
+      if (sessionData?.access_token) {
+        // Check JWT token expiry
+        try {
+          const payload = JSON.parse(atob(sessionData.access_token.split('.')[1]));
+          const tokenExp = payload.exp;
+          const now = Math.floor(Date.now() / 1000);
+          const timeUntilExpiry = tokenExp - now;
+          
+          // If token is valid or expired less than 2 hours ago, consider session valid
+          // Be very lenient to prevent auth loss during normal usage
+          if (timeUntilExpiry > -7200) {
+            console.log(`🔐 isSessionValid: Found stored session (expires in ${timeUntilExpiry}s), triggering restore`);
+            // Trigger session restoration
+            setTimeout(() => {
+              if (!useAuth.getState().isAuthenticated) {
+                console.log('🔐 Restoring session from localStorage');
+                useAuth.getState().initialize();
+              }
+            }, 100);
+            return true;
+          }
+        } catch (e) {
+          // Fallback to session expiry
+          if (sessionData.expires_at) {
+            const now = Math.floor(Date.now() / 1000);
+            const timeUntilExpiry = sessionData.expires_at - now;
+            if (timeUntilExpiry > -7200) {
+              console.log(`🔐 isSessionValid: Found stored session (fallback, expires in ${timeUntilExpiry}s), triggering restore`);
+              setTimeout(() => {
+                if (!useAuth.getState().isAuthenticated) {
+                  console.log('🔐 Restoring session from localStorage (fallback)');
+                  useAuth.getState().initialize();
+                }
+              }, 100);
+              return true;
+            }
+          }
+        }
+      }
+    } catch (e) {
+      // Invalid stored session
+    }
+  }
+  
+  console.log('🔐 isSessionValid: No valid session found, returning false');
+  return false;
 };

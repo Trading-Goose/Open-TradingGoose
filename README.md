@@ -8,7 +8,7 @@
   An intelligent trading platform powered by multiple AI agents that collaborate to analyze markets, manage portfolios, and execute trades with sophisticated risk management.
 </div>
 
-<img src="public/screen-shot.png" >
+<img src="public/Screenshot.png" >
 
 ## 📑 Table of Contents
 

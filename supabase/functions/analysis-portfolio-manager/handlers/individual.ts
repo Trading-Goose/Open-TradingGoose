@@ -18,7 +18,7 @@ async function markAnalysisAsFailed(
   errorMessage: string
 ): Promise<void> {
   try {
-    console.log('❌ Portfolio Manager failed - marking analysis as failed for retry');
+    console.log('❌ Analysis Portfolio Manager failed - marking analysis as failed for retry');
     
     // Mark analysis as failed (like risk-manager does)
     await supabase
@@ -51,8 +51,7 @@ export async function handleIndividualAnalysis(
   ticker: string,
   userId: string,
   apiSettings: any,
-  portfolioData: any,
-  constraints?: any
+  portfolioData: any
 ): Promise<Response> {
   console.log(`📊 Processing individual analysis for ${ticker}`);
   console.log(`  - Analysis ID: ${analysisId}`);
@@ -61,7 +60,7 @@ export async function handleIndividualAnalysis(
   console.log(`🔍 Checking for existing orders for analysis ${analysisId}`);
   const { data: existingOrders, error: checkError } = await supabase
     .from('trading_actions')
-    .select('ticker, action, dollar_amount, shares, confidence, reasoning')
+    .select('ticker, action, dollar_amount, shares, reasoning')
     .eq('analysis_id', analysisId);
   
   if (checkError) {
@@ -88,8 +87,11 @@ export async function handleIndividualAnalysis(
     assessment: analysis.agent_insights?.riskManager?.finalAssessment
   };
 
+  console.log(`📊 Risk Manager Analysis:`);
+  console.log(`  - Decision from DB: ${analysis.decision}`);
+  console.log(`  - Confidence from DB: ${analysis.confidence}%`);
   console.log(`  - Risk Manager Decision: ${riskManagerDecision?.decision || 'N/A'}`);
-  console.log(`  - Confidence: ${riskManagerDecision?.confidence || 0}%`);
+  console.log(`  - Risk Manager Confidence: ${riskManagerDecision?.confidence || 0}%`);
 
   // Update analysis phase
   await updateAnalysisPhase(supabase, analysisId, 'portfolio', {
@@ -145,11 +147,11 @@ export async function handleIndividualAnalysis(
       timestamp: new Date().toISOString(),
       type: 'decision'
     });
-    
+
     // Update workflow status to complete
     await updateWorkflowStepStatus(supabase, analysisId, 'portfolio', 'Analysis Portfolio Manager', 'completed');
     
-    console.log(`✅ Portfolio Manager completed using existing order for ${ticker}`);
+    console.log(`✅ Analysis Portfolio Manager completed using existing order for ${ticker}`);
     
     return new Response(JSON.stringify({
       success: true,
@@ -174,7 +176,7 @@ export async function handleIndividualAnalysis(
   // Process the analysis data and generate AI response
   const analysisResult = await processAnalysisData(
     supabase, fullAnalysis, analysisId, ticker, userId, apiSettings, 
-    portfolioData, constraints
+    portfolioData
   );
   
   if (!analysisResult.success) {

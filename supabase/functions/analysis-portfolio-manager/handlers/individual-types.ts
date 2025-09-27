@@ -8,7 +8,6 @@ export interface IndividualAnalysisContext {
   apiSettings: any;
   portfolioData: any;
   riskManagerDecision: any;
-  constraints?: any;
 }
 
 export interface PositionContext {
@@ -28,6 +27,7 @@ export interface IndividualAnalysisResponse {
   analysis_id: string;
   ticker: string;
   decision: string;
+  tradeDirection?: 'BUY' | 'SELL' | 'HOLD';
   originalDecision: string;
   message?: string;
   portfolio_snapshot: {

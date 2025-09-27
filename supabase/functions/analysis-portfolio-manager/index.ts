@@ -21,6 +21,11 @@ import {
 serve(async (req) => {
   let timeoutId: number | null = null;
   let analysisId: string | null = null;
+  let requestContext: {
+    ticker?: string;
+    userId?: string;
+    apiSettings?: any;
+  } = {};
 
   try {
     if (req.method !== 'POST') {
@@ -32,9 +37,10 @@ serve(async (req) => {
       analysisId: requestAnalysisId,
       ticker,
       userId,
-      apiSettings,
-      constraints
+      apiSettings
     } = request;
+
+    requestContext = { ticker, userId, apiSettings };
 
     // Store analysisId for error handling
     analysisId = requestAnalysisId;
@@ -112,8 +118,7 @@ serve(async (req) => {
       ticker,
       userId,
       apiSettings,
-      portfolioData,
-      constraints
+      portfolioData
     );
 
     // Clear timeout on successful completion
@@ -176,7 +181,10 @@ serve(async (req) => {
           'portfolio',
           'Analysis Portfolio Manager',
           errorMessage,
-          errorType
+          errorType,
+          requestContext.ticker,
+          requestContext.userId,
+          requestContext.apiSettings
         );
 
         // Also mark analysis as failed

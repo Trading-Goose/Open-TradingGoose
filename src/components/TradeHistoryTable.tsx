@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowUpRight, ArrowDownRight, Clock, CheckCircle, XCircle, TrendingUp, RefreshCw, Loader2, ExternalLink, FileText, BarChart3, Calendar, Package } from "lucide-react";
+import { ArrowUpRight, ArrowDownRight, Clock, CheckCircle, XCircle, TrendingUp, RefreshCw, Loader2, ExternalLink, FileText } from "lucide-react";
 import { alpacaAPI } from "@/lib/alpaca";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
@@ -58,6 +58,7 @@ export default function TradeHistoryTable() {
       if (error) throw error;
 
       if (data && data.length > 0) {
+        console.log('Raw trade data from database:', data);
         const trades: TradeDecision[] = data.map(item => ({
           id: item.id,
           symbol: item.ticker,
@@ -101,12 +102,13 @@ export default function TradeHistoryTable() {
     if (!user?.id || !apiSettings) return;
 
     try {
-      // Get all approved orders with Alpaca IDs in metadata
+      // Get all approved and executed orders with Alpaca IDs in metadata
+      // Include executed orders in case they need status updates (partial fills, cancellations, etc.)
       const { data: approvedOrders, error } = await supabase
         .from('trading_actions')
-        .select('id, metadata')
+        .select('id, metadata, status')
         .eq('user_id', user.id)
-        .eq('status', 'approved');
+        .in('status', ['approved', 'executed']);
 
       if (error || !approvedOrders || approvedOrders.length === 0) return;
 
@@ -143,7 +145,9 @@ export default function TradeHistoryTable() {
           if (alpacaOrder.status === 'filled') {
             updates.status = 'executed';
             updates.executed_at = alpacaOrder.filled_at || new Date().toISOString();
-          } else if (['canceled', 'rejected', 'expired'].includes(alpacaOrder.status)) {
+          } else if (['canceled', 'cancelled', 'rejected', 'expired'].includes(alpacaOrder.status)) {
+            // Only update to rejected if it's not already rejected
+            // This handles cases where an order was approved or executed but then canceled
             updates.status = 'rejected';
           }
 
@@ -288,13 +292,22 @@ export default function TradeHistoryTable() {
   // Filter trades by status
   const getFilteredTrades = (status?: string) => {
     if (!status || status === 'all') return allTrades;
+    
+    // Special handling for executed - look at Alpaca order status
+    if (status === 'executed') {
+      return allTrades.filter(trade => 
+        trade.alpacaOrderStatus === 'filled' || 
+        trade.alpacaOrderStatus === 'partially_filled'
+      );
+    }
+    
     return allTrades.filter(trade => trade.status === status);
   };
 
 
   const renderTradeCard = (decision: TradeDecision) => {
     const isPending = decision.status === 'pending';
-    const isExecuted = decision.status === 'executed';
+    const isExecuted = decision.alpacaOrderStatus === 'filled' || decision.alpacaOrderStatus === 'partially_filled';
     const isApproved = decision.status === 'approved';
     const isRejected = decision.status === 'rejected';
 
@@ -423,30 +436,25 @@ export default function TradeHistoryTable() {
                       const status = decision.alpacaOrderStatus.toLowerCase();
                       let variant: any = "outline";
                       let icon = null;
-                      let displayText = decision.alpacaOrderStatus;
                       let customClasses = "";
 
+                      // Display the actual Alpaca status directly
                       if (status === 'filled') {
                         variant = "success";
                         icon = <CheckCircle className="h-3 w-3 mr-1" />;
-                        displayText = "filled";
                       } else if (status === 'partially_filled') {
                         variant = "default";
                         icon = <Clock className="h-3 w-3 mr-1" />;
-                        displayText = "partial filled";
                         customClasses = "bg-blue-500 text-white border-blue-500";
-                      } else if (['new', 'pending_new', 'accepted'].includes(status)) {
+                      } else if (['new', 'pending_new', 'accepted', 'pending_replace', 'pending_cancel'].includes(status)) {
                         variant = "warning";
                         icon = <Clock className="h-3 w-3 mr-1" />;
-                        displayText = "placed";
-                      } else if (['canceled', 'cancelled'].includes(status)) {
+                      } else if (['canceled', 'cancelled', 'expired', 'replaced'].includes(status)) {
                         variant = "destructive";
                         icon = <XCircle className="h-3 w-3 mr-1" />;
-                        displayText = "failed";
                       } else if (status === 'rejected') {
                         variant = "destructive";
                         icon = <XCircle className="h-3 w-3 mr-1" />;
-                        displayText = "rejected";
                       }
 
                       return (
@@ -455,7 +463,7 @@ export default function TradeHistoryTable() {
                           className={`text-xs ${customClasses}`}
                         >
                           {icon}
-                          {displayText}
+                          {decision.alpacaOrderStatus}
                           {decision.alpacaFilledQty > 0 && status === 'partially_filled' && (
                             <span className="ml-1">({decision.alpacaFilledQty}/{decision.quantity})</span>
                           )}

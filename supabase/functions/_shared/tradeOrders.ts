@@ -11,6 +11,14 @@ export interface TradeOrderData {
   confidence: number;
   reasoning: string;
   analysisId?: string;
+  rebalanceRequestId?: string;
+  
+  // Metadata for additional order information
+  metadata?: {
+    useCloseEndpoint?: boolean;
+    shouldClosePosition?: boolean;
+    [key: string]: any;  // Allow additional metadata fields
+  };
   
   // Before/After position details
   beforeShares?: number;
@@ -25,11 +33,16 @@ export interface TradeOrderData {
   shareChange?: number;        // Net change in shares
   valueChange?: number;        // Net change in value
   allocationChange?: number;   // Net change in allocation percentage
+  
+  // Rebalance-specific fields (legacy compatibility)
+  targetAllocation?: number;
+  targetValue?: number;
 }
 
 export interface TradeOrderContext {
   userId: string;
-  sourceType: 'individual_analysis' | 'manual';
+  sourceType: 'individual_analysis' | 'rebalance' | 'manual';
+  rebalanceRequestId?: string;
   agent?: string;
 }
 
@@ -155,14 +168,17 @@ export async function submitTradeOrders(
       dollar_amount: finalDollarAmount,
       price: 0, // Will be filled with market price at execution
       status: TRADE_ORDER_STATUS.PENDING,
-      agent: context.agent || 'agent-coordinator',
+      agent: context.agent || (context.sourceType === 'rebalance' ? 'portfolio-manager' : 'agent-coordinator'),
       reasoning: order.reasoning,
       source_type: context.sourceType,
+      rebalance_request_id: order.rebalanceRequestId || context.rebalanceRequestId || null,
       position_percentage: order.afterAllocation || order.targetAllocation || null,
       target_value: order.afterValue || order.targetValue || order.dollarAmount || null,
       analysis_id: order.analysisId || null,
     // Store before/after details in metadata (JSONB field)
+    // IMPORTANT: Preserve existing metadata (like useCloseEndpoint, shouldClosePosition)
     metadata: {
+      ...order.metadata, // Preserve any existing metadata from the order
       beforePosition: {
         shares: order.beforeShares || 0,
         value: order.beforeValue || 0,
@@ -189,7 +205,8 @@ export async function submitTradeOrders(
     action: o.action,
     shares: o.shares,
     dollar_amount: o.dollar_amount,
-    status: o.status
+    status: o.status,
+    user_id: o.user_id
   })));
   
   try {
@@ -209,6 +226,19 @@ export async function submitTradeOrders(
     }
     
     console.log(`✅ Successfully created ${tradeOrders.length} trade order(s)`);
+    
+    // Verify what was actually created by querying back
+    if (context.sourceType === 'individual_analysis' && validOrders[0]?.analysisId) {
+      const { data: createdOrders, error: verifyError } = await supabase
+        .from('trading_actions')
+        .select('id, ticker, status, user_id, created_at')
+        .eq('analysis_id', validOrders[0].analysisId)
+        .order('created_at', { ascending: false });
+      
+      if (!verifyError && createdOrders) {
+        console.log('📋 Verification - Orders actually created in DB:', createdOrders);
+      }
+    }
     
     // Log details for each order
     tradeOrders.forEach(order => {
@@ -264,3 +294,24 @@ export function createTradeOrderFromDecision(
   };
 }
 
+/**
+ * Helper function to create trade orders from rebalance plan
+ * Used by portfolio-manager for rebalancing
+ */
+export function createTradeOrdersFromRebalancePlan(
+  rebalancePlan: any
+): TradeOrderData[] {
+  if (!rebalancePlan?.actions) {
+    return [];
+  }
+  
+  return rebalancePlan.actions.map((action: any) => ({
+    ticker: action.ticker,
+    action: action.action,
+    confidence: action.confidence || 70, // Default confidence for rebalance
+    reasoning: action.reasoning,
+    shareChange: action.shareChange,
+    targetAllocation: action.targetAllocation,
+    targetValue: action.targetValue
+  }));
+}

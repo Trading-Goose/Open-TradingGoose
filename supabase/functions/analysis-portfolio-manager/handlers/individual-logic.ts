@@ -1,35 +1,85 @@
 import { TradeOrderData } from '../../_shared/tradeOrders.ts';
 import { IndividualAnalysisContext, PositionContext } from './individual-types.ts';
 
+export type PortfolioIntent = 'BUILD' | 'ADD' | 'TRIM' | 'EXIT' | 'HOLD';
+
+export function intentToTradeDirection(intent: PortfolioIntent): 'BUY' | 'SELL' | 'HOLD' {
+  if (intent === 'BUILD' || intent === 'ADD') {
+    return 'BUY';
+  }
+  if (intent === 'TRIM' || intent === 'EXIT') {
+    return 'SELL';
+  }
+  return 'HOLD';
+}
+
+export function normaliseIntent(decision: string | null | undefined, hasPosition: boolean): PortfolioIntent {
+  const value = (decision || '').toString().trim().toUpperCase();
+
+  switch (value) {
+    case 'BUILD':
+      return hasPosition ? 'ADD' : 'BUILD';
+    case 'ADD':
+      return hasPosition ? 'ADD' : 'BUILD';
+    case 'TRIM':
+      return hasPosition ? 'TRIM' : 'HOLD';
+    case 'EXIT':
+      return hasPosition ? 'EXIT' : 'HOLD';
+    case 'HOLD':
+      return 'HOLD';
+    case 'SELL':
+      return hasPosition ? 'TRIM' : 'EXIT';
+    case 'BUY':
+      return hasPosition ? 'ADD' : 'BUILD';
+    default:
+      return hasPosition ? 'HOLD' : 'BUILD';
+  }
+}
+
 export async function prepareUserSettings(
-  context: IndividualAnalysisContext
+  supabase: any,
+  userId: string,
+  apiSettings: any,
+  portfolioData: any
 ) {
-  const { supabase, userId, apiSettings, constraints, portfolioData } = context;
   const totalValue = portfolioData.account.portfolio_value;
   
-  let userRiskLevel, defaultPositionSizeDollars, maxPositionSize;
+  let userRiskLevel: string;
+  let minPositionSizeDollars: number;
+  let maxPositionSizeDollars: number;
   
-  if (constraints && Object.keys(constraints).length > 0) {
-    console.log('💰 Using constraints from frontend:', constraints);
-    userRiskLevel = apiSettings.user_risk_level || 'moderate';
-    defaultPositionSizeDollars = constraints.minPositionSize || 1000;
-    maxPositionSize = constraints.maxPositionSize ? (constraints.maxPositionSize / totalValue * 100) : 10;
-  } else {
-    const { data: userSettings } = await supabase
-      .from('api_settings')
-      .select('user_risk_level, default_position_size_dollars')
-      .eq('user_id', userId)
-      .single();
-    
-    userRiskLevel = userSettings?.user_risk_level || apiSettings.user_risk_level || 'moderate';
-    defaultPositionSizeDollars = userSettings?.default_position_size_dollars || apiSettings.default_position_size_dollars || 1000;
-    maxPositionSize = apiSettings.max_position_size || 10;
-  }
+  // Note: constraints are never passed from coordinator, always use database settings
+  const { data: userSettings } = await supabase
+    .from('api_settings')
+    .select('user_risk_level, rebalance_min_position_size, rebalance_max_position_size, target_cash_allocation')
+    .eq('user_id', userId)
+    .single();
   
+  userRiskLevel = userSettings?.user_risk_level || apiSettings.user_risk_level || 'moderate';
+  
+  // Get percentage-based position sizes from database
+  const minPositionPercent = userSettings?.rebalance_min_position_size || apiSettings.rebalance_min_position_size || 5;
+  const maxPositionPercent = userSettings?.rebalance_max_position_size || apiSettings.rebalance_max_position_size || 25;
+  
+  // Calculate dollar amounts from percentages based on portfolio value
+  minPositionSizeDollars = (minPositionPercent / 100) * totalValue;
+  maxPositionSizeDollars = (maxPositionPercent / 100) * totalValue;
+  
+  console.log(`📊 Position sizing from percentages:`);
+  console.log(`  - Min: ${minPositionPercent}% = $${minPositionSizeDollars.toFixed(2)}`);
+  console.log(`  - Max: ${maxPositionPercent}% = $${maxPositionSizeDollars.toFixed(2)}`);
+  
+  const targetCashAllocationPercent = userSettings?.target_cash_allocation ??
+    apiSettings?.target_cash_allocation ?? 20;
+
   return {
     userRiskLevel,
-    defaultPositionSizeDollars,
-    maxPositionSize
+    defaultPositionSizeDollars: minPositionSizeDollars, // Use min as default
+    minPositionSize: minPositionPercent, // Percentage for prompts
+    maxPositionSize: maxPositionPercent, // Percentage for prompts
+    minPositionSizeDollars,
+    maxPositionSizeDollars,
+    targetCashAllocationPercent
   };
 }
 
@@ -53,32 +103,39 @@ export function validateDecision(
   decision: string,
   currentPosition: any,
   pendingOrdersForTicker: any[]
-): { effectiveDecision: string; sellWarning: string; pendingOrderOverride: string } {
-  let effectiveDecision = (decision === 'SELL' && !currentPosition) ? 'HOLD' : decision;
-  let sellWarning = '';
+): {
+  effectiveIntent: PortfolioIntent;
+  tradeDirection: 'BUY' | 'SELL' | 'HOLD';
+  intentWarning: string;
+  pendingOrderOverride: string;
+} {
+  const hasPosition = Boolean(currentPosition);
+  const baseIntent = normaliseIntent(decision, hasPosition);
+  let effectiveIntent: PortfolioIntent = baseIntent;
+  let intentWarning = '';
   let pendingOrderOverride = '';
-  
-  const hasPendingBuy = pendingOrdersForTicker.some((o: any) => o.side === 'buy');
-  const hasPendingSell = pendingOrdersForTicker.some((o: any) => o.side === 'sell');
-  
-  if (hasPendingBuy && decision === 'BUY') {
-    effectiveDecision = 'HOLD';
-    console.log(`⚠️ Overriding BUY decision - pending BUY order already exists`);
+
+  const hasPendingBuy = pendingOrdersForTicker?.some((o: any) => o.side === 'buy') || false;
+  const hasPendingSell = pendingOrdersForTicker?.some((o: any) => o.side === 'sell') || false;
+
+  if ((baseIntent === 'TRIM' || baseIntent === 'EXIT') && !hasPosition) {
+    intentWarning = '\n\nNOTE: Risk Manager suggested trimming/exiting but no position exists. Treating as HOLD.';
+    effectiveIntent = 'HOLD';
   }
-  if (hasPendingSell && decision === 'SELL') {
-    effectiveDecision = 'HOLD';
-    console.log(`⚠️ Overriding SELL decision - pending SELL order already exists`);
+
+  if ((baseIntent === 'BUILD' || baseIntent === 'ADD') && hasPendingBuy) {
+    console.log(`⚠️ Overriding ${baseIntent} intent - pending BUY order already exists`);
+    pendingOrderOverride = `\n\nCRITICAL: Decision overridden from ${baseIntent} to HOLD due to existing pending BUY order.`;
+    effectiveIntent = 'HOLD';
+  } else if ((baseIntent === 'TRIM' || baseIntent === 'EXIT') && hasPendingSell) {
+    console.log(`⚠️ Overriding ${baseIntent} intent - pending SELL order already exists`);
+    pendingOrderOverride = `\n\nCRITICAL: Decision overridden from ${baseIntent} to HOLD due to existing pending SELL order.`;
+    effectiveIntent = 'HOLD';
   }
-  
-  sellWarning = (decision === 'SELL' && !currentPosition) 
-    ? '\n\nNOTE: Risk Manager recommended SELL but no position exists. Treating as HOLD.'
-    : '';
-  
-  pendingOrderOverride = effectiveDecision === 'HOLD' && effectiveDecision !== decision
-    ? `\n\nCRITICAL: Decision overridden from ${decision} to HOLD due to existing pending ${hasPendingBuy ? 'BUY' : 'SELL'} order.`
-    : '';
-  
-  return { effectiveDecision, sellWarning, pendingOrderOverride };
+
+  const tradeDirection = intentToTradeDirection(effectiveIntent);
+
+  return { effectiveIntent, tradeDirection, intentWarning, pendingOrderOverride };
 }
 
 export function formatPendingOrdersInfo(
@@ -100,7 +157,7 @@ export function formatPendingOrdersInfo(
 
 export function createTradeOrder(
   ticker: string,
-  effectiveDecision: string,
+  effectiveIntent: PortfolioIntent,
   positionSizing: any,
   confidence: number,
   analysisId: string,
@@ -114,8 +171,16 @@ export function createTradeOrder(
   
   let afterShares = beforeShares;
   let afterValue = beforeValue;
-  
-  if (effectiveDecision === 'BUY') {
+  const tradeDirection = intentToTradeDirection(effectiveIntent);
+
+  const parsedPercent = Number(positionSizing.percentOfPortfolio);
+  const percentOfPortfolio = Number.isFinite(parsedPercent)
+    ? parsedPercent
+    : totalValue > 0
+      ? ((positionSizing.dollarAmount || 0) / totalValue) * 100
+      : 0;
+
+  if (tradeDirection === 'BUY') {
     if (positionSizing.dollarAmount > 0) {
       const sharesFromDollar = positionSizing.dollarAmount / currentPrice;
       afterShares = beforeShares + sharesFromDollar;
@@ -124,7 +189,7 @@ export function createTradeOrder(
       afterShares = beforeShares + positionSizing.shares;
       afterValue = afterShares * currentPrice;
     }
-  } else if (effectiveDecision === 'SELL') {
+  } else if (tradeDirection === 'SELL') {
     if (positionSizing.dollarAmount > 0) {
       const sharesFromDollar = positionSizing.dollarAmount / currentPrice;
       afterShares = Math.max(0, beforeShares - sharesFromDollar);
@@ -139,9 +204,9 @@ export function createTradeOrder(
   
   return {
     ticker,
-    action: effectiveDecision as 'BUY' | 'SELL',
+    action: tradeDirection === 'HOLD' ? 'HOLD' : tradeDirection,
     confidence,
-    reasoning: `${positionSizing.reasoning}. Risk-adjusted position: ${positionSizing.percentOfPortfolio.toFixed(1)}% of portfolio.`,
+    reasoning: `${positionSizing.reasoning}. Risk-adjusted position: ${percentOfPortfolio.toFixed(1)}% of portfolio. Intent: ${effectiveIntent}.`,
     analysisId,
     beforeShares,
     beforeValue,

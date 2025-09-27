@@ -1,5 +1,4 @@
 import { PositionSizingResult } from '../types/interfaces.ts';
-import { callAIProviderWithRetry } from '../../_shared/aiProviders.ts';
 
 export function parsePositionSizing(aiResponse: string, context: any): PositionSizingResult {
   // NO REGEX PARSING - rely on extraction agent for accurate values
@@ -17,7 +16,8 @@ export function parsePositionSizing(aiResponse: string, context: any): PositionS
       takeProfit: context.currentPrice * 1.10,
       riskRewardRatio: 2.0,
       reasoning: `Hold position`,
-      adjustment: 'none'
+      adjustment: 'none',
+      action: 'HOLD'
     };
   }
   
@@ -45,11 +45,55 @@ export function parsePositionSizing(aiResponse: string, context: any): PositionS
   const maxDollarAmount = (context.maxPositionSize / 100) * context.totalValue;
   dollarAmount = Math.min(dollarAmount, maxDollarAmount);
   
-  // IMPORTANT: Cap at available cash (cannot spend more than we have)
+  // IMPORTANT: Cap at allowed deployable cash (respecting target cash allocation)
   const availableCash = context.availableCash || context.currentCash || 0;
-  if (context.decision === 'BUY' && dollarAmount > availableCash) {
-    console.log(`⚠️ Position size limited by available cash: $${dollarAmount.toFixed(2)} → $${availableCash.toFixed(2)}`);
-    dollarAmount = availableCash;
+  const allowedCash = typeof context.allowedCash === 'number'
+    ? Math.max(0, Math.min(availableCash, context.allowedCash))
+    : availableCash;
+
+  if (context.decision === 'BUY') {
+    if (allowedCash <= 0) {
+      console.log(`⚠️ Allowed deployable cash is $0 - returning HOLD`);
+      return {
+        shares: 0,
+        dollarAmount: 0,
+        percentOfPortfolio: 0,
+        entryPrice: context.currentPrice,
+        stopLoss: context.currentPrice * 0.95,
+        takeProfit: context.currentPrice * 1.10,
+        riskRewardRatio: 2.0,
+        reasoning: 'Allowed deployable cash is exhausted - maintaining cash allocation',
+        adjustment: 'none',
+        action: 'HOLD'
+      };
+    }
+
+    if (dollarAmount > allowedCash) {
+      console.log(`⚠️ Position size limited by allowed cash: $${dollarAmount.toFixed(2)} → $${allowedCash.toFixed(2)}`);
+      dollarAmount = allowedCash;
+    }
+
+    // If raw available cash is lower than the allowed cap, respect that guard as well
+    if (dollarAmount > availableCash) {
+      console.log(`⚠️ Position size further limited by raw cash: $${dollarAmount.toFixed(2)} → $${availableCash.toFixed(2)}`);
+      dollarAmount = availableCash;
+    }
+
+    if (dollarAmount <= 0) {
+      console.log(`⚠️ Deployable cash insufficient after constraints - returning HOLD`);
+      return {
+        shares: 0,
+        dollarAmount: 0,
+        percentOfPortfolio: 0,
+        entryPrice: context.currentPrice,
+        stopLoss: context.currentPrice * 0.95,
+        takeProfit: context.currentPrice * 1.10,
+        riskRewardRatio: 2.0,
+        reasoning: 'Insufficient deployable cash for BUY - holding position',
+        adjustment: 'none',
+        action: 'HOLD'
+      };
+    }
   }
   
   // Calculate percentage and shares
@@ -71,189 +115,109 @@ export function parsePositionSizing(aiResponse: string, context: any): PositionS
     takeProfit,
     riskRewardRatio,
     reasoning,
-    adjustment: 'none'
+    adjustment: 'none',
+    action: context.decision as 'BUY' | 'SELL' | 'HOLD'
   };
 }
 
 export async function extractPositionSizing(aiResponse: string, context: any, apiSettings?: any): Promise<PositionSizingResult> {
-  // Pre-check: If the response clearly contains HOLD, return early with $0
-  if (aiResponse.toUpperCase().includes('HOLD')) {
-    console.log(`✅ Early HOLD detection - skipping extraction for HOLD decision`);
-    return {
-      shares: 0,
-      dollarAmount: 0,
-      percentOfPortfolio: 0,
-      entryPrice: context.currentPrice,
-      stopLoss: context.currentPrice * 0.95,
-      takeProfit: context.currentPrice * 1.10,
-      riskRewardRatio: 2.0,
-      reasoning: `Hold position - no dollar amount to extract`,
-      adjustment: 'none'
-    };
-  }
-
-  const extractionPrompt = `Extract position details from the portfolio manager's decision.
-
-PORTFOLIO MANAGER'S DECISION:
-${aiResponse}
-
-EXTRACTION RULES:
-- If the decision contains "HOLD" anywhere → dollarAmount: 0
-- Parse format: "BUY $3000 worth TSLA" → dollarAmount: 3000
-- Parse format: "SELL $2000 worth NVDA" → dollarAmount: 2000  
-- Parse format: "HOLD AAPL" → dollarAmount: 0
-- CRITICAL: If you see "HOLD" mentioned for the ticker, set dollarAmount to 0 regardless of other dollar amounts mentioned
-- Only extract dollar amounts that are explicitly tied to BUY/SELL actions
-- Ignore dollar amounts mentioned for portfolio context, current values, or explanations
-
-OUTPUT JSON FORMAT:
-{
-  "dollarAmount": number_from_decision,
-  "reasoning": "Position based on confidence level"
-}
-
-Return ONLY valid JSON.`;
-
-  // Retry logic for extraction - try up to 3 times  
-  const maxRetries = 3;
-  let extractionResponse = '';
-  let parsed: any = null;
+  // Direct parsing instead of AI extraction
+  // Look for patterns: "HOLD TICKER", "BUY $X worth TICKER", "SELL $X worth TICKER"
+  const holdPattern = /^(?:.*?)?(HOLD)\s+([A-Z0-9]+(?:\/[A-Z0-9]+)?)/im;
+  const tradePattern = /^(?:.*?)?(BUY|SELL)\s+\$([0-9,]+)\s+worth\s+([A-Z0-9]+(?:\/[A-Z0-9]+)?)/im;
   
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      console.log(`🔄 Position sizing extraction attempt ${attempt}/${maxRetries}...`);
-      
-      // Use 1/4 of portfolio_manager_max_tokens for extraction, with retries increasing
-      const baseExtractionTokens = Math.floor((apiSettings?.portfolio_manager_max_tokens || 1200) / 4);
-      const attemptTokens = baseExtractionTokens + (attempt - 1) * 200;
-      
-      // Get more emphatic about completing JSON on retries
-      const systemPrompt = attempt === 1 
-        ? 'PRIORITY: If you see HOLD anywhere, return {"dollarAmount": 0}. Extract dollar amounts only from explicit "[ACTION] $[amount] worth [TICKER]" format. Return only JSON.'
-        : `CRITICAL: Return ONLY JSON.
-If text contains "HOLD" → {"dollarAmount": 0, "reasoning": "Hold position"}
-Parse "BUY $3000 worth TSLA" → {"dollarAmount": 3000, "reasoning": "Position based on confidence"}
-Ignore contextual dollar amounts. Only extract from explicit trade actions.
-Finish the ENTIRE JSON structure.`;
-      
-      extractionResponse = await callAIProviderWithRetry(
-        apiSettings || context.apiSettings,
-        extractionPrompt,
-        systemPrompt,
-        attemptTokens,
-        3
-      );
-
-      console.log(`✅ Position sizing extraction response received (attempt ${attempt}), length: ${extractionResponse.length} chars`);
-      console.log(`📝 Raw extraction response: ${extractionResponse.substring(0, 500)}...`);
-
-      // Try to parse the extracted data
-      parsed = parsePositionSizingExtraction(extractionResponse, context);
-      
-      // If parsing succeeded, break out of retry loop
-      console.log(`✅ Successfully extracted position sizing on attempt ${attempt}`);
-      break;
-      
-    } catch (parseError) {
-      console.error(`❌ Position sizing extraction attempt ${attempt} failed:`, parseError);
-      
-      if (attempt === maxRetries) {
-        // If all attempts failed, fall back to default calculation
-        console.log(`⚠️ All extraction attempts failed, using fallback calculation`);
-        return parsePositionSizing(aiResponse, context);
+  let action = 'HOLD';
+  let dollarAmount = 0;
+  let ticker = context.ticker;
+  
+  // Try to match trade pattern first (BUY/SELL with amount)
+  const tradeMatch = aiResponse.match(tradePattern);
+  if (tradeMatch) {
+    action = tradeMatch[1].toUpperCase();
+    dollarAmount = parseInt(tradeMatch[2].replace(/,/g, ''));
+    ticker = tradeMatch[3].toUpperCase();
+    console.log(`📝 Extracted from Analysis Portfolio Manager: ${action} $${dollarAmount} worth ${ticker}`);
+  } else {
+    // Try to match HOLD pattern
+    const holdMatch = aiResponse.match(holdPattern);
+    if (holdMatch) {
+      action = 'HOLD';
+      ticker = holdMatch[2].toUpperCase();
+      console.log(`📝 Extracted from Analysis Portfolio Manager: HOLD ${ticker}`);
+    } else {
+      console.log(`⚠️ Could not parse Analysis Portfolio Manager decision, defaulting to HOLD`);
+    }
+  }
+  
+  // Get min position size in dollars
+  const minPositionPercent = apiSettings?.rebalance_min_position_size || 5;
+  const minPositionDollars = (minPositionPercent / 100) * context.totalValue;
+  
+  // Apply min position size checks
+  if (context.currentPosition) {
+    const currentPositionValue = context.currentPosition.market_value || 0;
+    
+    if (action === 'HOLD') {
+      if (currentPositionValue > 0 && currentPositionValue < minPositionDollars) {
+        // Check if this is likely a position that was bought at min size but declined
+        const lossGuardPercent = 10; // Default risk guard when position falls under minimum
+        const maxExpectedLoss = minPositionDollars * (lossGuardPercent / 100);
+        const actualLoss = minPositionDollars - currentPositionValue;
+        
+        if (actualLoss <= maxExpectedLoss) {
+          // Loss remains within the discretionary guard band - keep HOLD
+          console.log(`📊 ${ticker}: Position $${currentPositionValue.toFixed(2)} < min $${minPositionDollars.toFixed(2)}, but loss within ${lossGuardPercent}% guard - keeping HOLD`);
+        } else {
+          // Loss breaches guard band - convert to SELL
+          console.log(`⚠️ ${ticker}: Position value $${currentPositionValue.toFixed(2)} < min $${minPositionDollars.toFixed(2)} and loss exceeds ${lossGuardPercent}% guard - converting HOLD to SELL`);
+          action = 'SELL';
+          dollarAmount = currentPositionValue;
+        }
       }
-      
-      // Wait a bit before retrying
-      await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+    } else if (action === 'SELL') {
+      if (currentPositionValue > 0 && currentPositionValue < minPositionDollars) {
+        // For explicit SELL, always sell the full position if below minimum
+        console.log(`⚠️ ${ticker}: Position value $${currentPositionValue.toFixed(2)} < min $${minPositionDollars.toFixed(2)} - converting ${action} to SELL full position`);
+        action = 'SELL';
+        dollarAmount = currentPositionValue;
+      } else if (dollarAmount > 0 && dollarAmount < currentPositionValue) {
+        // Check if partial sell would leave position below minimum
+        const remainingValue = currentPositionValue - dollarAmount;
+        if (remainingValue > 0 && remainingValue < minPositionDollars) {
+          console.log(`⚠️ ${ticker}: Partial sell would leave $${remainingValue.toFixed(2)} < min $${minPositionDollars.toFixed(2)} - selling entire position`);
+          dollarAmount = currentPositionValue;
+        }
+      }
+    } else if (action === 'BUY') {
+      // Check if resulting position would meet minimum size
+      const resultingPositionValue = currentPositionValue + dollarAmount;
+      if (resultingPositionValue > 0 && resultingPositionValue < minPositionDollars) {
+        const adjustedAmount = minPositionDollars - currentPositionValue;
+        console.log(`⚠️ ${ticker}: BUY $${dollarAmount} would result in position $${resultingPositionValue.toFixed(2)} < min $${minPositionDollars.toFixed(2)}`);
+        console.log(`  → Adjusting BUY to $${adjustedAmount.toFixed(2)} to reach minimum position size`);
+        dollarAmount = adjustedAmount;
+      }
+    }
+  } else if (action === 'BUY') {
+    // New position - ensure it meets minimum size
+    if (dollarAmount > 0 && dollarAmount < minPositionDollars) {
+      console.log(`⚠️ ${ticker}: BUY $${dollarAmount} for new position < min $${minPositionDollars.toFixed(2)}`);
+      console.log(`  → Adjusting BUY to $${minPositionDollars.toFixed(2)} to meet minimum position size`);
+      dollarAmount = minPositionDollars;
     }
   }
   
-  if (!parsed) {
-    console.log(`⚠️ No parsed result, using fallback calculation`);
-    return parsePositionSizing(aiResponse, context);
-  }
-
-  return parsed;
-}
-
-function parsePositionSizingExtraction(extractionResponse: string, context: any): PositionSizingResult {
-  try {
-    // Clean up common JSON issues
-    let cleanedResponse = extractionResponse
-      .replace(/```json\s*/gi, '')
-      .replace(/```\s*/g, '')
-      .replace(/[\u2018\u2019]/g, "'")
-      .replace(/[\u201C\u201D]/g, '"')
-      .replace(/,\s*([\]}])/g, '$1');
-
-    // Extract JSON portion if wrapped in text
-    const jsonMatch = cleanedResponse.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      cleanedResponse = jsonMatch[0];
-    }
-
-    // Parse the extraction response
-    const parsed = JSON.parse(cleanedResponse);
-    
-    // Check if we have a dollarAmount field (can be 0 for HOLD)
-    if (parsed.dollarAmount === undefined || parsed.dollarAmount === null) {
-      throw new Error('Missing dollarAmount field');
-    }
-    
-    // For HOLD decisions, dollarAmount should be 0
-    if (parsed.dollarAmount === 0) {
-      console.log(`✅ Successfully extracted HOLD decision with $0`);
-      return {
-        shares: 0,
-        dollarAmount: 0,
-        percentOfPortfolio: 0,
-        entryPrice: context.currentPrice,
-        stopLoss: context.currentPrice * 0.95,
-        takeProfit: context.currentPrice * 1.10,
-        riskRewardRatio: 2.0,
-        reasoning: parsed.reasoning || `Hold position`,
-        adjustment: 'none'
-      };
-    }
-    
-    // For non-HOLD decisions, validate amount is positive
-    if (parsed.dollarAmount < 0) {
-      throw new Error('Invalid negative dollarAmount');
-    }
-    
-    // Validate against portfolio constraints
-    if (parsed.dollarAmount > context.totalValue) {
-      throw new Error(`Dollar amount ${parsed.dollarAmount} exceeds portfolio value ${context.totalValue}`);
-    }
-    
-    if (context.decision === 'BUY' && parsed.dollarAmount > context.availableCash) {
-      console.log(`⚠️ Position size limited by available cash: $${parsed.dollarAmount.toFixed(2)} → $${context.availableCash.toFixed(2)}`);
-      parsed.dollarAmount = context.availableCash;
-    }
-    
-    // Calculate derived values
-    const shares = context.currentPrice > 0 ? Math.floor(parsed.dollarAmount / context.currentPrice) : 0;
-    const percentOfPortfolio = (parsed.dollarAmount / context.totalValue) * 100;
-    
-    console.log(`✅ Successfully extracted: $${parsed.dollarAmount}, ${shares} shares, ${percentOfPortfolio.toFixed(1)}%`);
-    
-    return {
-      shares,
-      dollarAmount: parsed.dollarAmount,
-      percentOfPortfolio,
-      entryPrice: context.currentPrice,
-      stopLoss: context.currentPrice * 0.95,
-      takeProfit: context.currentPrice * 1.10,
-      riskRewardRatio: 2.0,
-      reasoning: parsed.reasoning || `Extracted position: $${parsed.dollarAmount}`,
-      adjustment: 'none'
-    };
-    
-  } catch (error) {
-    console.error('❌ Failed to parse position sizing extraction:', error);
-    console.error('📝 Raw response that failed:', extractionResponse.substring(0, 500));
-    
-    // Throw error to trigger retry
-    throw new Error(`Position sizing extraction failed: ${error.message}`);
-  }
+  // Return the parsed and validated position sizing
+  return {
+    action: action as 'BUY' | 'SELL' | 'HOLD',
+    dollarAmount,
+    shares: 0,
+    percentOfPortfolio: (dollarAmount / context.totalValue) * 100,
+    entryPrice: context.currentPrice,
+    stopLoss: context.currentPrice * 0.95,
+    takeProfit: context.currentPrice * 1.10,
+    riskRewardRatio: 2.0,
+    reasoning: '', // Will be generated by reasoning step
+    adjustment: 'none'
+  };
 }

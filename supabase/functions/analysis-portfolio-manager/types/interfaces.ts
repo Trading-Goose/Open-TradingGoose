@@ -23,14 +23,6 @@ export interface AnalysisPortfolioManagerRequest {
     deepseek_api_key?: string;
     openrouter_api_key?: string;
   };
-  constraints?: {
-    maxPositionSize?: number;
-    minPositionSize?: number;
-    targetCashAllocation?: number;
-    targetStockAllocation?: number;
-    skipThresholdCheck?: boolean;
-    skipOpportunityAgent?: boolean;
-  };
 }
 
 // Import shared portfolio types
@@ -46,4 +38,5 @@ export interface PositionSizingResult {
   riskRewardRatio: number | null;
   reasoning: string;
   adjustment?: string;
+  action?: 'BUY' | 'SELL' | 'HOLD';  // Added to track Analysis Portfolio Manager's actual decision
 }

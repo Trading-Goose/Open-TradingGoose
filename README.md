@@ -208,20 +208,12 @@ Perplefina is a required component that provides AI-powered web search capabilit
    
    Since Supabase edge functions need to access Perplefina from the internet, you must deploy it publicly:
    
-   **Option 1: Deploy to a Cloud Service**
+   ** Deploy to a Cloud Service**
    - Deploy to Railway, Render, Heroku, or any cloud platform
    - Follow the deployment instructions in the Perplefina repository
    - Note your public URL (e.g., `https://your-perplefina.railway.app`)
    
-   **Option 2: Use ngrok for Testing**
-   ```bash
-   # Run Perplefina locally
-   npm start
-   
-   # In another terminal, expose it via ngrok
-   ngrok http 3001
-   # Note the public URL (e.g., https://abc123.ngrok.io)
-   ```
+
 
 ### Backend Setup
 
@@ -251,7 +243,10 @@ Perplefina is a required component that provides AI-powered web search capabilit
    - Add the following secret:
      - Name: `PERPLEFINA_API_URL`
      - Value: Your Perplexica API endpoint (must be publicly accessible from the internet)
+     - Name: `FUNCTION_ACCESS_TOKEN`
+     - Value: JWT service role key copied from project API settings tab
    - Click **Save**
+   
    
    **Important:** The Perplexica URL must be publicly accessible from the internet. Supabase edge functions cannot access `localhost` or private network addresses. You need to either:
    - Deploy Perplexica to a cloud service (e.g., Railway, Render, Heroku)
